@@ -24,7 +24,7 @@ const snsLabels: Record<string, string> = {
 export default async function ConsultationsPage() {
   const consultations = await prisma.consultation.findMany({
     orderBy: { createdAt: "desc" },
-    include: { case: true },
+    include: { case: true, files: true },
   });
 
   return (
@@ -69,6 +69,39 @@ export default async function ConsultationsPage() {
                   {c.memo && (
                     <div className="mt-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
                       <strong>メモ:</strong> {c.memo}
+                    </div>
+                  )}
+                  {c.files && c.files.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs font-medium text-gray-500 mb-2">
+                        添付ファイル（{c.files.length}件）
+                      </p>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {c.files.map((f: { id: string; fileName: string; mimeType: string; data: string; fileSize: number }) => (
+                          <a
+                            key={f.id}
+                            href={`data:${f.mimeType};base64,${f.data}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block overflow-hidden rounded border hover:border-blue-400 transition-colors"
+                          >
+                            {f.mimeType.startsWith("image/") ? (
+                              <img
+                                src={`data:${f.mimeType};base64,${f.data}`}
+                                alt={f.fileName}
+                                className="h-20 w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-20 items-center justify-center bg-gray-100 text-xs text-gray-500">
+                                PDF
+                              </div>
+                            )}
+                            <p className="truncate px-1 py-0.5 text-[10px] text-gray-500">
+                              {f.fileName}
+                            </p>
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <div className="mt-4 flex items-center justify-between">

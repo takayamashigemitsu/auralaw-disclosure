@@ -73,12 +73,14 @@ export default function HomePage() {
             <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
               発信者情報開示請求で匿名の投稿者を特定し、
               法的に適切な対応を取ることができます。
-              まずは無料相談からお気軽にどうぞ。
+            </p>
+            <p className="mx-auto mt-3 max-w-lg text-base font-medium text-blue-700">
+              スクリーンショットを送るだけ。3分で相談完了。
             </p>
             <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Button size="lg" asChild>
                 <Link href="/contact">
-                  無料相談する <ArrowRight className="ml-2 h-4 w-4" />
+                  スクリーンショットを送って相談する <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>

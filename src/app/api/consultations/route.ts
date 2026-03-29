@@ -2,12 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
+const fileSchema = z.object({
+  fileName: z.string(),
+  fileSize: z.number(),
+  mimeType: z.string(),
+  data: z.string(),
+});
+
 const consultationSchema = z.object({
   name: z.string().min(1, "お名前を入力してください"),
   email: z.string().email("有効なメールアドレスを入力してください"),
   phone: z.string().optional(),
   snsType: z.string().min(1, "SNSを選択してください"),
   content: z.string().min(10, "相談内容を10文字以上で入力してください"),
+  files: z.array(fileSchema).optional(),
 });
 
 export async function POST(request: Request) {
@@ -23,6 +31,16 @@ export async function POST(request: Request) {
         snsType: data.snsType,
         content: data.content,
         status: "NEW",
+        files: data.files?.length
+          ? {
+              create: data.files.map((f) => ({
+                fileName: f.fileName,
+                fileSize: f.fileSize,
+                mimeType: f.mimeType,
+                data: f.data,
+              })),
+            }
+          : undefined,
       },
     });
 
@@ -45,7 +63,7 @@ export async function GET() {
   try {
     const consultations = await prisma.consultation.findMany({
       orderBy: { createdAt: "desc" },
-      include: { case: true },
+      include: { case: true, files: true },
     });
     return NextResponse.json(consultations);
   } catch {

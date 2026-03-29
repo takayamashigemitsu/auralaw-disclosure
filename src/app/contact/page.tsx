@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -16,7 +17,15 @@ import {
 } from "@/components/ui/select";
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
-import { MessageSquare, Loader2 } from "lucide-react";
+import { FileUpload } from "@/components/file-upload";
+import {
+  MessageSquare,
+  Loader2,
+  Camera,
+  Clock,
+  Shield,
+  CheckCircle,
+} from "lucide-react";
 
 const snsOptions = [
   { value: "X", label: "X（旧Twitter）" },
@@ -28,11 +37,20 @@ const snsOptions = [
   { value: "OTHER", label: "その他" },
 ];
 
+type UploadedFile = {
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  data: string;
+  preview?: string;
+};
+
 export default function ContactPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [snsType, setSnsType] = useState("");
+  const [files, setFiles] = useState<UploadedFile[]>([]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -46,6 +64,12 @@ export default function ContactPage() {
       phone: formData.get("phone") as string,
       snsType: snsType,
       content: formData.get("content") as string,
+      files: files.map(({ fileName, fileSize, mimeType, data }) => ({
+        fileName,
+        fileSize,
+        mimeType,
+        data,
+      })),
     };
 
     try {
@@ -73,7 +97,9 @@ export default function ContactPage() {
 
       router.push("/contact/complete");
     } catch {
-      setErrors({ form: "送信に失敗しました。しばらくしてから再度お試しください。" });
+      setErrors({
+        form: "送信に失敗しました。しばらくしてから再度お試しください。",
+      });
       setLoading(false);
     }
   }
@@ -83,97 +109,143 @@ export default function ContactPage() {
       <PublicHeader />
       <main className="flex-1 bg-gray-50 py-12 md:py-16">
         <div className="mx-auto max-w-xl px-4">
+          {/* Header */}
           <div className="text-center">
             <MessageSquare className="mx-auto h-10 w-10 text-blue-700" />
             <h1 className="mt-4 text-2xl font-bold text-gray-900 md:text-3xl">
               無料相談フォーム
             </h1>
             <p className="mt-2 text-gray-600">
-              秘密厳守で対応いたします。お気軽にご相談ください。
+              スクリーンショットを送るだけでOK。
+              <br />
+              弁護士が被害状況を確認し、最適な対応をご提案します。
             </p>
           </div>
 
-          <Card className="mt-8">
+          {/* Trust badges */}
+          <div className="mt-6 flex justify-center gap-4 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5 text-blue-600" />
+              3分で完了
+            </span>
+            <span className="flex items-center gap-1">
+              <Shield className="h-3.5 w-3.5 text-green-600" />
+              秘密厳守
+            </span>
+            <span className="flex items-center gap-1">
+              <CheckCircle className="h-3.5 w-3.5 text-blue-600" />
+              相談無料
+            </span>
+          </div>
+
+          <Card className="mt-6">
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="name">
-                    お名前 <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="山田 太郎"
-                    required
-                  />
-                  {errors.name && (
-                    <p className="text-sm text-red-500">{errors.name}</p>
-                  )}
+                {/* Screenshot upload - FIRST for conversion */}
+                <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-blue-700" />
+                    <h2 className="font-semibold text-gray-900">
+                      まずはスクリーンショットを送るだけ
+                    </h2>
+                  </div>
+                  <p className="mb-3 text-xs text-gray-500">
+                    誹謗中傷の投稿画面をスクリーンショットで撮影し、アップロードしてください。
+                    URLのわかる状態で撮影いただくとスムーズです。
+                  </p>
+                  <FileUpload files={files} onChange={setFiles} />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">
-                    メールアドレス <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="example@email.com"
-                    required
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-red-500">{errors.email}</p>
-                  )}
-                </div>
+                <Separator />
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone">電話番号</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    placeholder="090-1234-5678"
-                  />
-                </div>
+                {/* Contact info */}
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">
+                        お名前 <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="name"
+                        name="name"
+                        placeholder="山田 太郎"
+                        required
+                      />
+                      {errors.name && (
+                        <p className="text-sm text-red-500">{errors.name}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">電話番号</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        placeholder="090-1234-5678"
+                      />
+                    </div>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label>
-                    対象SNS・サイト <span className="text-red-500">*</span>
-                  </Label>
-                  <Select value={snsType} onValueChange={(v) => v && setSnsType(v)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="SNSを選択">
-                        {snsType ? snsOptions.find((o) => o.value === snsType)?.label : "SNSを選択"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {snsOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.snsType && (
-                    <p className="text-sm text-red-500">{errors.snsType}</p>
-                  )}
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">
+                      メールアドレス <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="example@email.com"
+                      required
+                    />
+                    {errors.email && (
+                      <p className="text-sm text-red-500">{errors.email}</p>
+                    )}
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="content">
-                    相談内容 <span className="text-red-500">*</span>
-                  </Label>
-                  <Textarea
-                    id="content"
-                    name="content"
-                    placeholder="被害の状況、投稿内容、お困りのことなどをできるだけ詳しくお書きください。"
-                    rows={6}
-                    required
-                  />
-                  {errors.content && (
-                    <p className="text-sm text-red-500">{errors.content}</p>
-                  )}
+                  <div className="space-y-2">
+                    <Label>
+                      被害を受けたSNS・サイト{" "}
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={snsType}
+                      onValueChange={(v) => v && setSnsType(v)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="SNSを選択">
+                          {snsType
+                            ? snsOptions.find((o) => o.value === snsType)?.label
+                            : "SNSを選択"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {snsOptions.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.snsType && (
+                      <p className="text-sm text-red-500">{errors.snsType}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="content">
+                      被害の状況 <span className="text-red-500">*</span>
+                    </Label>
+                    <Textarea
+                      id="content"
+                      name="content"
+                      placeholder="いつ頃から、どのような投稿をされているかなど、わかる範囲でお書きください。スクリーンショットを添付いただければ、詳しく書かなくても大丈夫です。"
+                      rows={5}
+                      required
+                    />
+                    {errors.content && (
+                      <p className="text-sm text-red-500">{errors.content}</p>
+                    )}
+                  </div>
                 </div>
 
                 {errors.form && (
@@ -191,13 +263,15 @@ export default function ContactPage() {
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       送信中...
                     </>
+                  ) : files.length > 0 ? (
+                    `スクリーンショット${files.length}件と一緒に送信する`
                   ) : (
                     "相談内容を送信する"
                   )}
                 </Button>
 
-                <p className="text-xs text-gray-400">
-                  ※ご入力いただいた情報は、ご相談への対応以外の目的で使用いたしません。
+                <p className="text-xs text-gray-400 text-center">
+                  ご入力いただいた情報は、ご相談への対応以外の目的で使用いたしません。
                 </p>
               </form>
             </CardContent>
