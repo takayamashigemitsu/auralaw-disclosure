@@ -92,10 +92,10 @@ const features = [
 ];
 
 const stats = [
-  { num: "2,400+", label: "累計相談件数", sub: "2018年〜" },
-  { num: "6", label: "対応可能SNS", sub: "主要サービス" },
-  { num: "3ヶ月", label: "ログ保存期間", sub: "早期相談が重要" },
-  { num: "10:00〜18:00", label: "平日受付", sub: "土日は要相談" },
+  { num: "無料", label: "初回相談料", sub: "費用ゼロでご相談可能" },
+  { num: "6+", label: "対応SNS・媒体数", sub: "X・Instagram・掲示板 等" },
+  { num: "最大3ヶ月", label: "ログ保存期間", sub: "今すぐ行動が重要" },
+  { num: "全国", label: "対応エリア", sub: "オンライン相談可" },
 ];
 
 export default function HomePage() {
