@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
+  }
+
   const { id } = await params;
 
   try {
@@ -16,6 +22,13 @@ export async function POST(
       return NextResponse.json(
         { error: "相談が見つかりません" },
         { status: 404 }
+      );
+    }
+
+    if (consultation.status === "CONVERTED") {
+      return NextResponse.json(
+        { error: "この相談は既に案件化されています" },
+        { status: 409 }
       );
     }
 
@@ -34,7 +47,6 @@ export async function POST(
       data: { status: "CONVERTED" },
     });
 
-    // Create initial timeline entry
     await prisma.caseTimeline.create({
       data: {
         caseId: newCase.id,

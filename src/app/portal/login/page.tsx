@@ -31,8 +31,7 @@ export default function PortalLoginPage() {
       setError("メールアドレスまたはパスワードが正しくありません。");
       setLoading(false);
     } else {
-      router.push("/portal/dashboard");
-      router.refresh();
+      window.location.href = "/portal/dashboard";
     }
   }
 

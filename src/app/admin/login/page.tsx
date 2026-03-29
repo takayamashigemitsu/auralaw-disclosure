@@ -31,8 +31,8 @@ export default function AdminLoginPage() {
       setError("メールアドレスまたはパスワードが正しくありません。");
       setLoading(false);
     } else {
-      router.push("/admin/dashboard");
-      router.refresh();
+      // signIn成功後、ミドルウェアが認証を認識するよう完全遷移
+      window.location.href = "/admin/dashboard";
     }
   }
 

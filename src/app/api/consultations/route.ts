@@ -60,6 +60,14 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  // middleware enforces ADMIN/STAFF for this path,
+  // but add explicit auth as defense-in-depth
+  const { auth } = await import("@/lib/auth");
+  const session = await auth();
+  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
+    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
+  }
+
   try {
     const consultations = await prisma.consultation.findMany({
       orderBy: { createdAt: "desc" },

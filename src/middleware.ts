@@ -69,14 +69,27 @@ export async function middleware(req: NextRequest) {
   }
 
   // ─── 公開ルート（認証不要） ───
-  if (pathname === "/admin/login") return withSecurityHeaders(NextResponse.next());
-  if (pathname === "/portal/login") return withSecurityHeaders(NextResponse.next());
-  if (pathname === "/portal/register") return withSecurityHeaders(NextResponse.next());
   if (pathname.startsWith("/api/auth")) return withSecurityHeaders(NextResponse.next());
   if (pathname.startsWith("/api/clients/register")) return withSecurityHeaders(NextResponse.next());
 
   // ─── 認証チェック ───
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+  // ─── 認証済みユーザーのログインページリダイレクト ───
+  if (token) {
+    const role = token.role as string;
+    if (pathname === "/admin/login" && ["ADMIN", "STAFF"].includes(role)) {
+      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+    }
+    if (pathname === "/portal/login" && role === "CLIENT") {
+      return NextResponse.redirect(new URL("/portal/dashboard", req.url));
+    }
+  }
+
+  // 未認証 → ログインページ/登録ページはそのまま表示
+  if (pathname === "/admin/login") return withSecurityHeaders(NextResponse.next());
+  if (pathname === "/portal/login") return withSecurityHeaders(NextResponse.next());
+  if (pathname === "/portal/register") return withSecurityHeaders(NextResponse.next());
 
   if (!token) {
     if (pathname.startsWith("/api/")) {
