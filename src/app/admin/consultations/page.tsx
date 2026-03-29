@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, ArrowRight } from "lucide-react";
+import { SearchInput } from "@/components/search-input";
+import { StatusFilter } from "@/components/status-filter";
 import { ConsultationActions } from "./consultation-actions";
+import Link from "next/link";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   NEW: { label: "新規", variant: "destructive" },
@@ -10,6 +13,13 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   RESOLVED: { label: "解決済", variant: "secondary" },
   CONVERTED: { label: "案件化済", variant: "outline" },
 };
+
+const statusOptions = [
+  { value: "NEW", label: "新規" },
+  { value: "IN_PROGRESS", label: "対応中" },
+  { value: "RESOLVED", label: "解決済" },
+  { value: "CONVERTED", label: "案件化済" },
+];
 
 const snsLabels: Record<string, string> = {
   X: "X（旧Twitter）",
@@ -21,8 +31,27 @@ const snsLabels: Record<string, string> = {
   OTHER: "その他",
 };
 
-export default async function ConsultationsPage() {
+export default async function ConsultationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status } = await searchParams;
+
+  const where: Record<string, unknown> = {};
+  if (q) {
+    where.OR = [
+      { name: { contains: q, mode: "insensitive" } },
+      { email: { contains: q, mode: "insensitive" } },
+      { content: { contains: q, mode: "insensitive" } },
+    ];
+  }
+  if (status) {
+    where.status = status;
+  }
+
   const consultations = await prisma.consultation.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: { case: true, files: true },
   });
@@ -37,78 +66,56 @@ export default async function ConsultationsPage() {
         <Badge variant="outline">{consultations.length}件</Badge>
       </div>
 
+      {/* Search & Filter */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="flex-1">
+          <SearchInput placeholder="名前・メール・内容で検索..." />
+        </div>
+        <StatusFilter options={statusOptions} />
+      </div>
+
       {consultations.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">
-            相談データがありません。
+            {q || status ? "条件に一致する相談がありません。" : "相談データがありません。"}
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {consultations.map((c) => {
             const sc = statusConfig[c.status] || { label: c.status, variant: "outline" as const };
             return (
-              <Card key={c.id}>
-                <CardHeader className="pb-3">
+              <Card key={c.id} className="transition-colors hover:bg-gray-50/50">
+                <CardContent className="py-4">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{c.name}</CardTitle>
-                      <div className="mt-1 flex flex-wrap gap-2 text-sm text-gray-500">
+                    <Link href={`/admin/consultations/${c.id}`} className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{c.name}</p>
+                        <Badge variant={sc.variant} className="text-xs">{sc.label}</Badge>
+                        {c.files.length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            画像{c.files.length}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-1 flex gap-2 text-xs text-gray-500">
                         <span>{c.email}</span>
-                        {c.phone && <span>/ {c.phone}</span>}
                         <span>/ {snsLabels[c.snsType] || c.snsType}</span>
+                        <span>/ {new Date(c.createdAt).toLocaleDateString("ja-JP")}</span>
                       </div>
-                    </div>
-                    <Badge variant={sc.variant}>{sc.label}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {c.content}
-                  </p>
-                  {c.memo && (
-                    <div className="mt-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
-                      <strong>メモ:</strong> {c.memo}
-                    </div>
-                  )}
-                  {c.files && c.files.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-xs font-medium text-gray-500 mb-2">
-                        添付ファイル（{c.files.length}件）
+                      <p className="mt-2 line-clamp-2 text-sm text-gray-600">
+                        {c.content}
                       </p>
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {c.files.map((f: { id: string; fileName: string; mimeType: string; data: string; fileSize: number }) => (
-                          <a
-                            key={f.id}
-                            href={`data:${f.mimeType};base64,${f.data}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block overflow-hidden rounded border hover:border-blue-400 transition-colors"
-                          >
-                            {f.mimeType.startsWith("image/") ? (
-                              <img
-                                src={`data:${f.mimeType};base64,${f.data}`}
-                                alt={f.fileName}
-                                className="h-20 w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-20 items-center justify-center bg-gray-100 text-xs text-gray-500">
-                                PDF
-                              </div>
-                            )}
-                            <p className="truncate px-1 py-0.5 text-[10px] text-gray-500">
-                              {f.fileName}
-                            </p>
-                          </a>
-                        ))}
-                      </div>
+                    </Link>
+                    <div className="ml-4 flex items-center gap-2">
+                      <ConsultationActions consultation={c} hasCase={!!c.case} />
+                      <Link
+                        href={`/admin/consultations/${c.id}`}
+                        className="text-gray-400 hover:text-blue-600"
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
                     </div>
-                  )}
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-xs text-gray-400">
-                      {new Date(c.createdAt).toLocaleString("ja-JP")}
-                    </span>
-                    <ConsultationActions consultation={c} hasCase={!!c.case} />
                   </div>
                 </CardContent>
               </Card>

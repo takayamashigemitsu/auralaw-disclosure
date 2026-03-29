@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyStatusChange } from "@/lib/notifications";
 
 export async function GET(
   request: Request,
@@ -33,6 +34,10 @@ export async function PATCH(
   const body = await request.json();
 
   try {
+    // Get old status before update
+    const oldCase = await prisma.case.findUnique({ where: { id } });
+    const oldStatus = oldCase?.status;
+
     const caseData = await prisma.case.update({
       where: { id },
       data: {
@@ -40,6 +45,12 @@ export async function PATCH(
         description: body.description,
       },
     });
+
+    // Notify client if status changed
+    if (body.status && oldStatus && body.status !== oldStatus) {
+      notifyStatusChange(id, oldStatus, body.status).catch(console.error);
+    }
+
     return NextResponse.json(caseData);
   } catch {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });

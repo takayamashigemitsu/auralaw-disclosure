@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Briefcase,
+  Users,
   LogOut,
   Scale,
   Menu,
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/admin/dashboard", label: "ダッシュボード", icon: LayoutDashboard },
   { href: "/admin/consultations", label: "相談管理", icon: MessageSquare },
   { href: "/admin/cases", label: "案件管理", icon: Briefcase },
+  { href: "/admin/clients", label: "クライアント", icon: Users },
 ];
 
 export function AdminSidebar() {
