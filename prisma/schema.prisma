@@ -167,3 +167,14 @@ model ClientInvitation {
   case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId String
 }
+
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String?
+  fields      String   // JSON: [{key, label, type, defaultValue?}]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

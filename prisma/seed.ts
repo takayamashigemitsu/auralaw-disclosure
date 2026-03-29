@@ -88,6 +88,66 @@ async function main() {
     ],
   });
 
+  // Document templates
+  await prisma.documentTemplate.upsert({
+    where: { id: "tmpl_delegation" },
+    update: {},
+    create: {
+      id: "tmpl_delegation",
+      name: "委任状",
+      category: "DELEGATION",
+      description: "発信者情報開示請求に関する委任状",
+      fields: JSON.stringify([
+        { key: "clientName", label: "依頼者氏名", type: "text" },
+        { key: "clientAddress", label: "依頼者住所", type: "text" },
+        { key: "snsType", label: "対象SNS", type: "text" },
+        { key: "lawyerName", label: "弁護士名", type: "text", defaultValue: "藤原 洋一" },
+        { key: "date", label: "日付", type: "date" },
+      ]),
+    },
+  });
+
+  await prisma.documentTemplate.upsert({
+    where: { id: "tmpl_disclosure" },
+    update: {},
+    create: {
+      id: "tmpl_disclosure",
+      name: "発信者情報開示請求書",
+      category: "DISCLOSURE_REQUEST",
+      description: "プロバイダへの発信者情報開示請求書",
+      fields: JSON.stringify([
+        { key: "clientName", label: "請求者氏名", type: "text" },
+        { key: "providerName", label: "プロバイダ名", type: "text" },
+        { key: "snsType", label: "対象サイト", type: "text" },
+        { key: "targetUrl", label: "対象投稿URL", type: "text" },
+        { key: "violatedRight", label: "侵害された権利", type: "text", defaultValue: "名誉権（名誉毀損）" },
+        { key: "reason", label: "権利侵害の理由", type: "textarea" },
+        { key: "lawyerName", label: "弁護士名", type: "text", defaultValue: "藤原 洋一" },
+        { key: "date", label: "日付", type: "date" },
+      ]),
+    },
+  });
+
+  await prisma.documentTemplate.upsert({
+    where: { id: "tmpl_notice" },
+    update: {},
+    create: {
+      id: "tmpl_notice",
+      name: "通知書",
+      category: "NOTICE",
+      description: "発信者に対する損害賠償請求の通知書",
+      fields: JSON.stringify([
+        { key: "clientName", label: "依頼者氏名", type: "text" },
+        { key: "recipientName", label: "相手方氏名", type: "text" },
+        { key: "snsType", label: "対象SNS", type: "text" },
+        { key: "violationType", label: "侵害内容", type: "text", defaultValue: "名誉毀損に該当する投稿" },
+        { key: "amount", label: "請求金額（円）", type: "text" },
+        { key: "lawyerName", label: "弁護士名", type: "text", defaultValue: "藤原 洋一" },
+        { key: "date", label: "日付", type: "date" },
+      ]),
+    },
+  });
+
   console.log("Seed completed:", { admin: admin.email, staff: staff.email });
 }
 

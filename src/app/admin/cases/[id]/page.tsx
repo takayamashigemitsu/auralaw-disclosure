@@ -7,6 +7,7 @@ import { CaseStatusUpdate } from "./case-status-update";
 import { CaseTimelineSection } from "./case-timeline";
 import { AIAnalysisButton } from "@/components/ai-analysis-button";
 import { InviteClientButton } from "@/components/invite-client-dialog";
+import { DocumentGenerator } from "@/components/document-generator";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   ACCEPTED: { label: "受任", color: "bg-blue-100 text-blue-800" },
@@ -107,6 +108,54 @@ export default async function CaseDetailPage({
             caseId={caseData.id}
             timelines={caseData.timelines}
           />
+
+          {/* Documents */}
+          <DocumentGenerator
+            caseId={caseData.id}
+            defaultValues={{
+              clientName: caseData.clientName,
+              snsType: caseData.snsType,
+              date: new Date().toISOString().split("T")[0],
+            }}
+          />
+
+          {/* Existing documents */}
+          {caseData.documents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  作成済み書類（{caseData.documents.length}件）
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {caseData.documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between rounded border p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{doc.fileName}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {doc.documentType === "CREATED" ? "作成" : doc.documentType === "COURT" ? "裁判所" : doc.documentType === "OPPONENT" ? "相手方" : "アップロード"}
+                        </Badge>
+                        {doc.isSharedWithClient && (
+                          <Badge variant="secondary" className="text-xs">共有中</Badge>
+                        )}
+                      </div>
+                      <a
+                        href={doc.fileUrl}
+                        download={doc.fileName}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        DL
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Messages */}
           <Card>
