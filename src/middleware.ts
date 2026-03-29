@@ -1,40 +1,71 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  loginLimiter,
+  consultationLimiter,
+  uploadLimiter,
+  apiLimiter,
+  getClientIp,
+} from "@/lib/rate-limit";
+
+// ─── セキュリティヘッダー ───
+function withSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  return response;
+}
+
+// ─── レート制限チェック ───
+async function checkRateLimit(
+  limiter: { limit: (key: string) => Promise<{ success: boolean; remaining: number }> } | null,
+  ip: string
+): Promise<NextResponse | null> {
+  if (!limiter) return null;
+  const { success, remaining } = await limiter.limit(ip);
+  if (!success) {
+    const res = NextResponse.json(
+      { error: "リクエストが多すぎます。しばらくしてからお試しください。" },
+      { status: 429 }
+    );
+    res.headers.set("Retry-After", "60");
+    res.headers.set("X-RateLimit-Remaining", String(remaining));
+    return withSecurityHeaders(res);
+  }
+  return null;
+}
 
 /**
- * 認証ミドルウェア + セキュリティヘッダー
- *
- * ■ public（認証不要）
- *   - /admin/login
- *   - /portal/login, /portal/register
- *   - POST /api/consultations（公開フォーム）
- *   - POST /api/upload（公開フォーム用）
- *   - /api/auth/*（NextAuth内部）
- *   - /api/clients/register（招待トークンベース）
- *
- * ■ admin（ADMIN or STAFF）
- *   - /admin/*（login除く）
- *   - /api/consultations GET/PATCH, /api/cases/*, /api/ai/*, /api/documents/*, /api/clients/invite, /api/files/*
- *
- * ■ portal（CLIENT — ただしメッセージ送信はAPIレベルで案件所有者チェック）
- *   - /portal/*（login, register除く）
+ * 認証ミドルウェア + セキュリティヘッダー + レート制限
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const method = req.method;
+  const ip = getClientIp(req);
 
-  // ─── セキュリティヘッダー付きレスポンスを生成 ───
-  function withSecurityHeaders(response: NextResponse): NextResponse {
-    response.headers.set("X-Content-Type-Options", "nosniff");
-    response.headers.set("X-Frame-Options", "DENY");
-    response.headers.set("X-XSS-Protection", "1; mode=block");
-    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    response.headers.set(
-      "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=()"
-    );
-    return response;
+  // ─── レート制限（公開エンドポイント） ───
+
+  // ログイン
+  if (pathname === "/api/auth/callback/credentials" && method === "POST") {
+    const blocked = await checkRateLimit(loginLimiter, ip);
+    if (blocked) return blocked;
+  }
+
+  // 相談フォーム送信
+  if (pathname === "/api/consultations" && method === "POST") {
+    const blocked = await checkRateLimit(consultationLimiter, ip);
+    if (blocked) return blocked;
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+  // ファイルアップロード
+  if (pathname === "/api/upload" && method === "POST") {
+    const blocked = await checkRateLimit(uploadLimiter, ip);
+    if (blocked) return blocked;
+    return withSecurityHeaders(NextResponse.next());
   }
 
   // ─── 公開ルート（認証不要） ───
@@ -42,10 +73,6 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/portal/login") return withSecurityHeaders(NextResponse.next());
   if (pathname === "/portal/register") return withSecurityHeaders(NextResponse.next());
   if (pathname.startsWith("/api/auth")) return withSecurityHeaders(NextResponse.next());
-
-  // 公開APIエンドポイント
-  if (pathname === "/api/consultations" && method === "POST") return withSecurityHeaders(NextResponse.next());
-  if (pathname === "/api/upload" && method === "POST") return withSecurityHeaders(NextResponse.next());
   if (pathname.startsWith("/api/clients/register")) return withSecurityHeaders(NextResponse.next());
 
   // ─── 認証チェック ───
@@ -66,6 +93,12 @@ export async function middleware(req: NextRequest) {
     return withSecurityHeaders(NextResponse.next());
   }
 
+  // ─── 認証済みAPIにも汎用レート制限 ───
+  if (pathname.startsWith("/api/")) {
+    const blocked = await checkRateLimit(apiLimiter, `${ip}:${token.id}`);
+    if (blocked) return blocked;
+  }
+
   const role = token.role as string;
 
   // ─── ロールチェック ───
@@ -73,7 +106,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // 管理系API — ADMIN/STAFFのみ（CLIENTはメッセージAPIのみエンドポイント内で許可）
   const adminApiPaths = [
     "/api/consultations",
     "/api/cases",
@@ -82,18 +114,15 @@ export async function middleware(req: NextRequest) {
     "/api/clients/invite",
     "/api/files",
   ];
-
   const isAdminApi = adminApiPaths.some((p) => pathname.startsWith(p));
   const isMessageEndpoint = /^\/api\/cases\/[^/]+\/messages$/.test(pathname);
 
-  // メッセージAPIはCLIENTも許可（案件所有者チェックはAPI内で実施）
   if (isAdminApi && !isMessageEndpoint && !["ADMIN", "STAFF"].includes(role)) {
     return withSecurityHeaders(
       NextResponse.json({ error: "権限がありません" }, { status: 403 })
     );
   }
 
-  // ポータルはCLIENTのみ
   if (pathname.startsWith("/portal") && role !== "CLIENT") {
     return NextResponse.redirect(new URL("/", req.url));
   }
@@ -112,5 +141,7 @@ export const config = {
     "/api/clients/:path*",
     "/api/notifications/:path*",
     "/api/files/:path*",
+    "/api/auth/:path*",
+    "/api/upload/:path*",
   ],
 };
