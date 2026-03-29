@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CaseStatusUpdate } from "./case-status-update";
 import { CaseTimelineSection } from "./case-timeline";
+import { AIAnalysisButton } from "@/components/ai-analysis-button";
+import { InviteClientButton } from "@/components/invite-client-dialog";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   ACCEPTED: { label: "受任", color: "bg-blue-100 text-blue-800" },
@@ -36,10 +38,13 @@ export default async function CaseDetailPage({
   const caseData = await prisma.case.findUnique({
     where: { id },
     include: {
-      consultation: true,
+      consultation: { include: { files: true } },
       timelines: { orderBy: { date: "asc" } },
       messages: { orderBy: { createdAt: "desc" }, take: 20 },
+      documents: { orderBy: { createdAt: "desc" } },
       clientUser: true,
+      aiAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
+      invitations: { where: { usedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
 
@@ -49,6 +54,19 @@ export default async function CaseDetailPage({
     label: caseData.status,
     color: "bg-gray-100 text-gray-800",
   };
+
+  const hasImages = caseData.consultation?.files?.some((f) => f.mimeType.startsWith("image/")) ?? false;
+  const latestAnalysis = caseData.aiAnalyses[0]
+    ? {
+        defamationLikelihood: caseData.aiAnalyses[0].defamationLikelihood,
+        recommendedProcedure: caseData.aiAnalyses[0].recommendedProcedure,
+        estimatedCost: caseData.aiAnalyses[0].estimatedCost,
+        keyPoints: JSON.parse(caseData.aiAnalyses[0].keyPoints),
+        isPlaceholder: caseData.aiAnalyses[0].isPlaceholder,
+      }
+    : null;
+  const pendingInvitation = caseData.invitations[0];
+  const consultationEmail = caseData.consultation?.email;
 
   return (
     <div className="space-y-6">
@@ -167,6 +185,45 @@ export default async function CaseDetailPage({
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Client invitation */}
+          {!caseData.clientUser && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">クライアント</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingInvitation ? (
+                  <div className="space-y-1 text-sm">
+                    <p className="text-amber-700">招待送信済み</p>
+                    <p className="text-xs text-gray-500">{pendingInvitation.email}</p>
+                    <p className="text-xs text-gray-400">
+                      期限: {new Date(pendingInvitation.expiresAt).toLocaleDateString("ja-JP")}
+                    </p>
+                  </div>
+                ) : (
+                  <InviteClientButton
+                    caseId={caseData.id}
+                    defaultEmail={consultationEmail}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">AI分析</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AIAnalysisButton
+                caseId={caseData.id}
+                hasImages={hasImages}
+                existingResult={latestAnalysis}
+              />
             </CardContent>
           </Card>
         </div>

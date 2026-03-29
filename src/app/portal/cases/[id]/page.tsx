@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, Circle, Clock } from "lucide-react";
+import { CheckCircle, Circle, Clock, FileText } from "lucide-react";
 import { PortalMessageForm } from "./portal-message-form";
 
 const allStatuses = [
@@ -40,6 +40,10 @@ export default async function PortalCaseDetailPage({
       messages: {
         orderBy: { createdAt: "asc" },
         take: 50,
+      },
+      documents: {
+        where: { isSharedWithClient: true },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -138,6 +142,39 @@ export default async function PortalCaseDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Shared documents */}
+      {caseData.documents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              <FileText className="mr-2 inline h-4 w-4" />
+              共有書類
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {caseData.documents.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={doc.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-blue-50"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-medium">{doc.fileName}</span>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {new Date(doc.createdAt).toLocaleDateString("ja-JP")}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Messages */}
       <Card>
