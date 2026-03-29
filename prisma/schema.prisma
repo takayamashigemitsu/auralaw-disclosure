@@ -42,8 +42,7 @@ model Consultation {
   files      ConsultationFile[]
   aiAnalyses AIAnalysis[]
 
-  case   Case?   @relation
-  caseId String? @unique
+  case Case? @relation
 }
 
 model ConsultationFile {
