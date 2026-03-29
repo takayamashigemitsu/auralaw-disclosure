@@ -8,21 +8,48 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+  }
+
   const { id } = await params;
   const body = await request.json();
+
+  if (!body.content || typeof body.content !== "string" || body.content.trim().length === 0) {
+    return NextResponse.json({ error: "メッセージを入力してください" }, { status: 400 });
+  }
+
+  // メッセージ長制限（10,000文字）
+  if (body.content.length > 10000) {
+    return NextResponse.json({ error: "メッセージが長すぎます" }, { status: 400 });
+  }
+
+  // 認可チェック: CLIENTは自分の案件のみ、ADMIN/STAFFは全案件
+  const role = session.user.role;
+  if (role === "CLIENT") {
+    const caseData = await prisma.case.findFirst({
+      where: { id, clientUserId: session.user.id },
+    });
+    if (!caseData) {
+      return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    }
+  }
+
+  // isFromClientはロールから自動判定（リクエストから操作不可）
+  const isFromClient = role === "CLIENT";
 
   try {
     const message = await prisma.caseMessage.create({
       data: {
         caseId: id,
-        content: body.content,
-        isFromClient: body.isFromClient ?? false,
-        userId: session?.user?.id || null,
+        content: body.content.trim(),
+        isFromClient,
+        userId: session.user.id,
       },
     });
 
     // Notify the other party
-    notifyNewMessage(id, body.isFromClient ?? false).catch(console.error);
+    notifyNewMessage(id, isFromClient).catch(console.error);
 
     return NextResponse.json(message);
   } catch {

@@ -152,10 +152,10 @@ export function FileUpload({
       </div>
 
       {/* Trust signal */}
-      <div className="flex items-center gap-2 rounded-md bg-green-50 px-3 py-2">
-        <Shield className="h-4 w-4 shrink-0 text-green-600" />
-        <p className="text-xs text-green-700">
-          アップロードされたファイルは暗号化して安全に保管され、担当弁護士のみが閲覧できます。
+      <div className="flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2">
+        <Shield className="h-4 w-4 shrink-0 text-blue-600" />
+        <p className="text-xs text-blue-700">
+          アップロードされたファイルは、弁護士の守秘義務のもと厳重に管理されます。
         </p>
       </div>
 

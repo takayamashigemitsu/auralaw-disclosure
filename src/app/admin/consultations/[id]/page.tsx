@@ -40,7 +40,11 @@ export default async function ConsultationDetailPage({
 
   const consultation = await prisma.consultation.findUnique({
     where: { id },
-    include: { files: true, case: true, aiAnalyses: { orderBy: { createdAt: "desc" }, take: 1 } },
+    include: {
+      files: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+      case: true,
+      aiAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
   });
 
   if (!consultation) notFound();
@@ -121,16 +125,17 @@ export default async function ConsultationDetailPage({
                   {consultation.files.map((f) => (
                     <a
                       key={f.id}
-                      href={`data:${f.mimeType};base64,${f.data}`}
+                      href={`/api/files/${f.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block overflow-hidden rounded-lg border transition-colors hover:border-blue-400"
                     >
                       {f.mimeType.startsWith("image/") ? (
                         <img
-                          src={`data:${f.mimeType};base64,${f.data}`}
+                          src={`/api/files/${f.id}`}
                           alt={f.fileName}
                           className="h-48 w-full object-contain bg-gray-50"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="flex h-48 items-center justify-center bg-gray-100 text-gray-500">
