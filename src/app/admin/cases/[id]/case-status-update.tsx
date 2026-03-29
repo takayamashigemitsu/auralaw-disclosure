@@ -11,16 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-
-const statuses = [
-  { value: "ACCEPTED", label: "受任" },
-  { value: "INJUNCTION_FILED", label: "仮処分申立" },
-  { value: "DISCLOSURE_REQUESTED", label: "開示請求中" },
-  { value: "DISCLOSURE_RECEIVED", label: "開示完了" },
-  { value: "LAWSUIT_FILED", label: "訴訟提起" },
-  { value: "SETTLED", label: "和解" },
-  { value: "CLOSED", label: "終了" },
-];
+import { CASE_STATUS_LIST, getCaseStatusLabel } from "@/lib/constants";
 
 export function CaseStatusUpdate({
   caseId,
@@ -63,10 +54,12 @@ export function CaseStatusUpdate({
           disabled={loading}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>
+              {getCaseStatusLabel(currentStatus)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {statuses.map((s) => (
+            {CASE_STATUS_LIST.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>

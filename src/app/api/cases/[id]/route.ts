@@ -6,9 +6,10 @@ import { notifyStatusChange } from "@/lib/notifications";
 const VALID_STATUSES = [
   "ACCEPTED",
   "PROVIDER_REQUEST",
-  "COURT_ORDER",
-  "DISCLOSED",
-  "LAWSUIT",
+  "INJUNCTION_FILED",
+  "DISCLOSURE_REQUESTED",
+  "DISCLOSURE_RECEIVED",
+  "LAWSUIT_FILED",
   "SETTLED",
   "CLOSED",
 ];

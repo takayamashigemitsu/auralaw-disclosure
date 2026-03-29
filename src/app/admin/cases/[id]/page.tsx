@@ -8,26 +8,12 @@ import { CaseTimelineSection } from "./case-timeline";
 import { AIAnalysisButton } from "@/components/ai-analysis-button";
 import { InviteClientButton } from "@/components/invite-client-dialog";
 import { DocumentGenerator } from "@/components/document-generator";
-
-const statusConfig: Record<string, { label: string; color: string }> = {
-  ACCEPTED: { label: "受任", color: "bg-blue-100 text-blue-800" },
-  INJUNCTION_FILED: { label: "仮処分申立", color: "bg-yellow-100 text-yellow-800" },
-  DISCLOSURE_REQUESTED: { label: "開示請求中", color: "bg-orange-100 text-orange-800" },
-  DISCLOSURE_RECEIVED: { label: "開示完了", color: "bg-green-100 text-green-800" },
-  LAWSUIT_FILED: { label: "訴訟提起", color: "bg-purple-100 text-purple-800" },
-  SETTLED: { label: "和解", color: "bg-gray-100 text-gray-800" },
-  CLOSED: { label: "終了", color: "bg-gray-100 text-gray-600" },
-};
-
-const snsLabels: Record<string, string> = {
-  X: "X（旧Twitter）",
-  INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook",
-  YOUTUBE: "YouTube",
-  TIKTOK: "TikTok",
-  FIVECH: "5ちゃんねる",
-  OTHER: "その他",
-};
+import {
+  getCaseStatusLabel,
+  getCaseStatusColor,
+  getSnsLabel,
+  getDocumentTypeLabel,
+} from "@/lib/constants";
 
 export default async function CaseDetailPage({
   params,
@@ -51,9 +37,9 @@ export default async function CaseDetailPage({
 
   if (!caseData) notFound();
 
-  const sc = statusConfig[caseData.status] || {
-    label: caseData.status,
-    color: "bg-gray-100 text-gray-800",
+  const sc = {
+    label: getCaseStatusLabel(caseData.status),
+    color: getCaseStatusColor(caseData.status),
   };
 
   const hasImages = caseData.consultation?.files?.some((f) => f.mimeType.startsWith("image/")) ?? false;
@@ -77,7 +63,7 @@ export default async function CaseDetailPage({
             {caseData.clientName}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            {snsLabels[caseData.snsType] || caseData.snsType} /
+            {getSnsLabel(caseData.snsType)} /
             案件ID: {caseData.id.slice(0, 8)}...
           </p>
         </div>
@@ -114,7 +100,7 @@ export default async function CaseDetailPage({
             caseId={caseData.id}
             defaultValues={{
               clientName: caseData.clientName,
-              snsType: caseData.snsType,
+              snsType: getSnsLabel(caseData.snsType),
               date: new Date().toISOString().split("T")[0],
             }}
           />
@@ -137,7 +123,7 @@ export default async function CaseDetailPage({
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{doc.fileName}</span>
                         <Badge variant="outline" className="text-xs">
-                          {doc.documentType === "CREATED" ? "作成" : doc.documentType === "COURT" ? "裁判所" : doc.documentType === "OPPONENT" ? "相手方" : "アップロード"}
+                          {getDocumentTypeLabel(doc.documentType)}
                         </Badge>
                         {doc.isSharedWithClient && (
                           <Badge variant="secondary" className="text-xs">共有中</Badge>

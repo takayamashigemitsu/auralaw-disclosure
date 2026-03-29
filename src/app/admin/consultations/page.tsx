@@ -1,35 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { MessageSquare, ArrowRight } from "lucide-react";
 import { SearchInput } from "@/components/search-input";
 import { StatusFilter } from "@/components/status-filter";
 import { ConsultationActions } from "./consultation-actions";
 import Link from "next/link";
+import { CONSULTATION_STATUS, getSnsLabel } from "@/lib/constants";
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  NEW: { label: "新規", variant: "destructive" },
-  IN_PROGRESS: { label: "対応中", variant: "default" },
-  RESOLVED: { label: "解決済", variant: "secondary" },
-  CONVERTED: { label: "案件化済", variant: "outline" },
-};
-
-const statusOptions = [
-  { value: "NEW", label: "新規" },
-  { value: "IN_PROGRESS", label: "対応中" },
-  { value: "RESOLVED", label: "解決済" },
-  { value: "CONVERTED", label: "案件化済" },
-];
-
-const snsLabels: Record<string, string> = {
-  X: "X（旧Twitter）",
-  INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook",
-  YOUTUBE: "YouTube",
-  TIKTOK: "TikTok",
-  FIVECH: "5ちゃんねる",
-  OTHER: "その他",
-};
+const consultationStatusOptions = Object.entries(CONSULTATION_STATUS).map(
+  ([value, config]) => ({ value, label: config.label })
+);
 
 export default async function ConsultationsPage({
   searchParams,
@@ -66,12 +47,11 @@ export default async function ConsultationsPage({
         <Badge variant="outline">{consultations.length}件</Badge>
       </div>
 
-      {/* Search & Filter */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex-1">
           <SearchInput placeholder="名前・メール・内容で検索..." />
         </div>
-        <StatusFilter options={statusOptions} />
+        <StatusFilter options={consultationStatusOptions} />
       </div>
 
       {consultations.length === 0 ? (
@@ -83,7 +63,10 @@ export default async function ConsultationsPage({
       ) : (
         <div className="space-y-3">
           {consultations.map((c) => {
-            const sc = statusConfig[c.status] || { label: c.status, variant: "outline" as const };
+            const sc = CONSULTATION_STATUS[c.status as keyof typeof CONSULTATION_STATUS] || {
+              label: c.status,
+              variant: "outline" as const,
+            };
             return (
               <Card key={c.id} className="transition-colors hover:bg-gray-50/50">
                 <CardContent className="py-4">
@@ -100,7 +83,7 @@ export default async function ConsultationsPage({
                       </div>
                       <div className="mt-1 flex gap-2 text-xs text-gray-500">
                         <span>{c.email}</span>
-                        <span>/ {snsLabels[c.snsType] || c.snsType}</span>
+                        <span>/ {getSnsLabel(c.snsType)}</span>
                         <span>/ {new Date(c.createdAt).toLocaleDateString("ja-JP")}</span>
                       </div>
                       <p className="mt-2 line-clamp-2 text-sm text-gray-600">
