@@ -32,6 +32,7 @@ export default function ContactPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [snsType, setSnsType] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -43,7 +44,7 @@ export default function ContactPage() {
       name: formData.get("name") as string,
       email: formData.get("email") as string,
       phone: formData.get("phone") as string,
-      snsType: formData.get("snsType") as string,
+      snsType: snsType,
       content: formData.get("content") as string,
     };
 
@@ -140,9 +141,11 @@ export default function ContactPage() {
                   <Label>
                     対象SNS・サイト <span className="text-red-500">*</span>
                   </Label>
-                  <Select name="snsType" required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="SNSを選択" />
+                  <Select value={snsType} onValueChange={(v) => v && setSnsType(v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="SNSを選択">
+                        {snsType ? snsOptions.find((o) => o.value === snsType)?.label : "SNSを選択"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {snsOptions.map((o) => (

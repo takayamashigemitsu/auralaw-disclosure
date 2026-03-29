@@ -150,8 +150,10 @@ export default function SimulatorPage() {
               <div className="space-y-2">
                 <Label>対象SNS・サイト</Label>
                 <Select value={sns} onValueChange={(v) => v && setSns(v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="SNSを選択" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="SNSを選択">
+                      {sns ? snsOptions.find((o) => o.value === sns)?.label : "SNSを選択"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {snsOptions.map((o) => (
@@ -180,8 +182,10 @@ export default function SimulatorPage() {
                   </Tooltip>
                 </Label>
                 <Select value={procedure} onValueChange={(v) => v && setProcedure(v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="手続きを選択" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="手続きを選択">
+                      {procedure ? procedureOptions.find((o) => o.value === procedure)?.label : "手続きを選択"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {procedureOptions.map((o) => (
@@ -197,8 +201,10 @@ export default function SimulatorPage() {
               <div className="space-y-2">
                 <Label>対象投稿数</Label>
                 <Select value={postCount} onValueChange={(v) => v && setPostCount(v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="投稿数を選択" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="投稿数を選択">
+                      {postCount ? postCountOptions.find((o) => o.value === postCount)?.label : "投稿数を選択"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {postCountOptions.map((o) => (
