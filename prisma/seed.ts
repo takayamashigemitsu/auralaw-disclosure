@@ -4,23 +4,28 @@ import { hashSync } from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  // Remove old test accounts if they exist
+  await prisma.user.deleteMany({
+    where: { email: { in: ["admin@example.com", "staff@example.com"] } },
+  });
+
   const admin = await prisma.user.upsert({
-    where: { email: "admin@example.com" },
-    update: {},
+    where: { email: "info@auralaw.jp" },
+    update: { hashedPassword: hashSync("AURA2026@Disclosure#Law", 10) },
     create: {
-      email: "admin@example.com",
-      hashedPassword: hashSync("admin123", 10),
-      name: "管理者",
+      email: "info@auralaw.jp",
+      hashedPassword: hashSync("AURA2026@Disclosure#Law", 10),
+      name: "AURA管理者",
       role: "ADMIN",
     },
   });
 
   const staff = await prisma.user.upsert({
-    where: { email: "staff@example.com" },
+    where: { email: "staff@auralaw.jp" },
     update: {},
     create: {
-      email: "staff@example.com",
-      hashedPassword: hashSync("staff123", 10),
+      email: "staff@auralaw.jp",
+      hashedPassword: hashSync("AURA2026@Staff#Law", 10),
       name: "スタッフ",
       role: "STAFF",
     },
