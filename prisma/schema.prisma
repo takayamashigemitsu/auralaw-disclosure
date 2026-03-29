@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  hashedPassword String
+  name           String
+  role           String    @default("CLIENT")
+  otpCode        String?
+  otpExpiresAt   DateTime?
+  emailVerified  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  cases         Case[]
+  caseMessages  CaseMessage[]
+  caseDocuments CaseDocument[]
+}
+
+model Consultation {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  snsType   String
+  content   String
+  status    String   @default("NEW")
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case   Case?   @relation
+  caseId String? @unique
+}
+
+model Case {
+  id             String   @id @default(cuid())
+  clientName     String
+  snsType        String
+  status         String   @default("ACCEPTED")
+  description    String?
+  portalToken    String   @unique @default(cuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  consultationId String?       @unique
+
+  clientUser   User?   @relation(fields: [clientUserId], references: [id])
+  clientUserId String?
+
+  timelines  CaseTimeline[]
+  messages   CaseMessage[]
+  documents  CaseDocument[]
+}
+
+model CaseTimeline {
+  id                String   @id @default(cuid())
+  title             String
+  description       String?
+  date              DateTime
+  isVisibleToClient Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+}
+
+model CaseMessage {
+  id           String   @id @default(cuid())
+  content      String
+  isFromClient Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+}
+
+model CaseDocument {
+  id         String   @id @default(cuid())
+  fileName   String
+  fileUrl    String
+  fileSize   Int
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+}
