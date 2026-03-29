@@ -4,8 +4,10 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
+// Resendではドメイン認証前は onboarding@resend.dev のみ使用可能
+// 独自ドメイン認証後に EMAIL_FROM を設定する
 const FROM =
-  process.env.EMAIL_FROM || "AURA法律事務所 <noreply@example.com>";
+  process.env.EMAIL_FROM || "弁護士法人AURA <onboarding@resend.dev>";
 
 export async function sendEmail({
   to,

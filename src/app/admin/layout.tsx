@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { AdminSidebar } from "@/components/admin-sidebar";
 
@@ -9,17 +8,13 @@ export default async function AdminLayout({
 }) {
   const session = await auth();
 
-  // Allow login page without auth
-  // The login page has its own layout
+  // middleware.ts が /admin/login 以外の未認証アクセスをリダイレクト済み
+  // ログインページは認証不要なのでそのまま描画
   if (!session?.user) {
     return <>{children}</>;
   }
 
-  // Only ADMIN and STAFF can access admin pages
-  if (!["ADMIN", "STAFF"].includes(session.user.role)) {
-    redirect("/");
-  }
-
+  // ADMIN/STAFF以外のロールチェックも middleware.ts で済み
   return (
     <div className="min-h-screen bg-gray-50">
       <AdminSidebar />

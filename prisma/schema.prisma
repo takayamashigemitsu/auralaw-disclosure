@@ -178,3 +178,21 @@ model DocumentTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ─── 構造化ログ ───
+model AppLog {
+  id        String   @id @default(cuid())
+  level     String   // info, warn, error
+  category  String   // auth, db, api, ui, business
+  message   String
+  context   String?  // JSON: エラー詳細、リクエスト情報等
+  userId    String?
+  path      String?
+  userAgent String?
+  duration  Int?     // ms
+  createdAt DateTime @default(now())
+
+  @@index([level, createdAt])
+  @@index([category, createdAt])
+  @@index([userId, createdAt])
+}
