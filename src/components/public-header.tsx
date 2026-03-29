@@ -9,7 +9,7 @@ import { Menu, Scale, X } from "lucide-react";
 const navItems = [
   { href: "/#about", label: "開示請求とは" },
   { href: "/#flow", label: "手続きの流れ" },
-  { href: "/#fee", label: "費用" },
+  { href: "/fee", label: "費用一覧" },
   { href: "/simulator", label: "費用シミュレーター" },
   { href: "/contact", label: "無料相談" },
 ];

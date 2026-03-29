@@ -171,11 +171,17 @@ export default function HomePage() {
                   </p>
                 </CardContent>
               </Card>
-              <div className="mt-6 text-center">
+              <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                <Button variant="outline" asChild>
+                  <Link href="/fee">
+                    <Scale className="mr-2 h-4 w-4" />
+                    費用一覧を見る
+                  </Link>
+                </Button>
                 <Button variant="outline" asChild>
                   <Link href="/simulator">
                     <Calculator className="mr-2 h-4 w-4" />
-                    詳しい費用をシミュレーションする
+                    費用をシミュレーションする
                   </Link>
                 </Button>
               </div>
