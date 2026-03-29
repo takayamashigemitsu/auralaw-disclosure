@@ -47,6 +47,16 @@ export async function POST(
       data: { status: "CONVERTED" },
     });
 
+    // 初期ターゲット（相談時のSNSから自動作成）
+    await prisma.caseTarget.create({
+      data: {
+        caseId: newCase.id,
+        snsType: consultation.snsType,
+        postContent: consultation.content.slice(0, 200),
+        status: "PENDING",
+      },
+    });
+
     await prisma.caseTimeline.create({
       data: {
         caseId: newCase.id,

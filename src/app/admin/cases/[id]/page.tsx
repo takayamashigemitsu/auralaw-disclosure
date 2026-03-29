@@ -14,6 +14,7 @@ import {
   getSnsLabel,
   getDocumentTypeLabel,
 } from "@/lib/constants";
+import { CaseTargetsSection } from "./case-targets";
 
 export default async function CaseDetailPage({
   params,
@@ -26,6 +27,7 @@ export default async function CaseDetailPage({
     where: { id },
     include: {
       consultation: { include: { files: true } },
+      targets: { orderBy: { createdAt: "asc" } },
       timelines: { orderBy: { date: "asc" } },
       messages: { orderBy: { createdAt: "desc" }, take: 20 },
       documents: { orderBy: { createdAt: "desc" } },
@@ -88,6 +90,12 @@ export default async function CaseDetailPage({
               </CardContent>
             </Card>
           )}
+
+          {/* Targets / 対象サイト・投稿 */}
+          <CaseTargetsSection
+            caseId={caseData.id}
+            targets={caseData.targets}
+          />
 
           {/* Timeline */}
           <CaseTimelineSection

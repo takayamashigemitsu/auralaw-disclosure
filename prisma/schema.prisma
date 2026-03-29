@@ -73,11 +73,27 @@ model Case {
   clientUser   User?   @relation(fields: [clientUserId], references: [id])
   clientUserId String?
 
+  targets     CaseTarget[]
   timelines   CaseTimeline[]
   messages    CaseMessage[]
   documents   CaseDocument[]
   aiAnalyses  AIAnalysis[]
   invitations ClientInvitation[]
+}
+
+model CaseTarget {
+  id          String   @id @default(cuid())
+  snsType     String   // X, INSTAGRAM, FIVECH, etc.
+  url         String?  // 対象投稿URL
+  postContent String?  // 投稿内容の概要
+  defendant   String?  // 被告名（判明している場合）
+  status      String   @default("PENDING") // PENDING, DISCLOSED, IDENTIFIED, SETTLED
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
 }
 
 model CaseTimeline {
