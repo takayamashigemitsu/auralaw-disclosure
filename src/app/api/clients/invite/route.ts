@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
+import { auditLog } from "@/lib/audit-log";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -42,6 +43,13 @@ export async function POST(request: Request) {
       caseId,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     },
+  });
+
+  await auditLog({
+    action: "INVITATION_SENT",
+    userId: session.user.id,
+    details: { email, caseId, invitationId: invitation.id },
+    path: "/api/clients/invite",
   });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://auralaw-disclosure.vercel.app";

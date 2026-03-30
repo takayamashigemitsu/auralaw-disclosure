@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { notifyNewMessage } from "@/lib/notifications";
+import { auditLog } from "@/lib/audit-log";
 
 export async function POST(
   request: Request,
@@ -52,6 +53,13 @@ export async function POST(
         isFromClient,
         userId: session.user.id,
       },
+    });
+
+    await auditLog({
+      action: "MESSAGE_SENT",
+      userId: session.user.id,
+      details: { caseId: id, messageId: message.id, isFromClient },
+      path: `/api/cases/${id}/messages`,
     });
 
     // Notify the other party

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { auditLog } from "@/lib/audit-log";
 
 const VALID_STATUSES = ["ESTIMATED", "CONFIRMED", "INVOICED", "PAID"];
 
@@ -48,6 +49,14 @@ export async function PATCH(
       where: { id: billingId },
       data: updateData,
     });
+
+    await auditLog({
+      action: "BILLING_UPDATED",
+      userId: session.user.id,
+      details: { caseId, billingId, changes: updateData },
+      path: `/api/cases/${caseId}/billing/${billingId}`,
+    });
+
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
@@ -74,6 +83,14 @@ export async function DELETE(
     }
 
     await prisma.caseBilling.delete({ where: { id: billingId } });
+
+    await auditLog({
+      action: "BILLING_DELETED",
+      userId: session.user.id,
+      details: { caseId, billingId, label: billing.label, amount: billing.amount },
+      path: `/api/cases/${caseId}/billing/${billingId}`,
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });

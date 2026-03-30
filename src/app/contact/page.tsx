@@ -175,6 +175,11 @@ export default function ContactPage() {
     setLoading(true);
     setErrors({});
 
+    // Include honeypot fields from the form
+    const formEl = e.currentTarget;
+    const websiteVal = (formEl.elements.namedItem("website") as HTMLInputElement)?.value || "";
+    const companyVal = (formEl.elements.namedItem("company") as HTMLInputElement)?.value || "";
+
     const data = {
       name: name.trim(),
       email: email.trim(),
@@ -187,6 +192,8 @@ export default function ContactPage() {
         mimeType,
         data,
       })),
+      website: websiteVal,
+      company: companyVal,
     };
 
     try {
@@ -286,6 +293,26 @@ export default function ContactPage() {
           <Card className="mt-6">
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Honeypot fields - hidden from real users, bots will fill them */}
+                <div className="absolute -left-[9999px] opacity-0 h-0 overflow-hidden" aria-hidden="true">
+                  <label htmlFor="website">Website</label>
+                  <input
+                    type="text"
+                    id="website"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
+                  <label htmlFor="company">Company</label>
+                  <input
+                    type="text"
+                    id="company"
+                    name="company"
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
+                </div>
+
                 {/* Screenshot upload - FIRST for conversion */}
                 <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4">
                   <div className="mb-3 flex items-center gap-2">

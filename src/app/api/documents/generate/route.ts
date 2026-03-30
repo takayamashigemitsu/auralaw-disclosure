@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GENERATORS } from "@/lib/docgen";
+import { auditLog } from "@/lib/audit-log";
+import { uploadFile } from "@/lib/storage";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -38,22 +40,35 @@ export async function POST(request: Request) {
 
   try {
     const buffer = await generator(values);
-    const base64 = buffer.toString("base64");
     const fileName = `${templateCategory}_${new Date().toISOString().split("T")[0]}.docx`;
 
     // Save to case documents if caseId provided
     if (caseId) {
-      await prisma.caseDocument.create({
+      const { url: fileUrl } = await uploadFile(
+        buffer,
+        fileName,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        `cases/${caseId}/documents`
+      );
+
+      const caseDocument = await prisma.caseDocument.create({
         data: {
           caseId,
           fileName,
-          fileUrl: `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64}`,
+          fileUrl,
           fileSize: buffer.length,
           uploadedBy: "STAFF",
           documentType: "CREATED",
           isSharedWithClient: false,
           userId: session.user.id,
         },
+      });
+
+      await auditLog({
+        action: "DOCUMENT_CREATED",
+        userId: session.user.id,
+        details: { caseId, documentId: caseDocument.id, fileName, templateCategory },
+        path: "/api/documents/generate",
       });
     }
 

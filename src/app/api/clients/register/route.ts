@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashSync } from "bcryptjs";
 import { z } from "zod";
+import { auditLog } from "@/lib/audit-log";
 
 const registerSchema = z.object({
   token: z.string().min(1),
   name: z.string().min(1, "お名前を入力してください"),
-  password: z.string().min(8, "パスワードは8文字以上で入力してください"),
+  password: z.string()
+    .min(8, "パスワードは8文字以上で入力してください")
+    .regex(/[A-Za-z]/, "パスワードには英字を含めてください")
+    .regex(/[0-9]/, "パスワードには数字を含めてください"),
 });
 
 export async function GET(request: Request) {
@@ -80,6 +84,13 @@ export async function POST(request: Request) {
         where: { id: invitation.id },
         data: { usedAt: new Date() },
       });
+    });
+
+    await auditLog({
+      action: "CLIENT_REGISTERED",
+      userId: "system",
+      details: { email: invitation.email, caseId: invitation.caseId },
+      path: "/api/clients/register",
     });
 
     return NextResponse.json({ success: true });

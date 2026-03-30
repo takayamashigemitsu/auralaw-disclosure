@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { auditLog } from "@/lib/audit-log";
 
 const VALID_STATUSES = ["PENDING", "IN_PROGRESS", "DONE", "SKIPPED"];
 const VALID_PRIORITIES = ["URGENT", "HIGH", "NORMAL", "LOW"];
@@ -89,6 +90,14 @@ export async function PATCH(
       where: { id },
       data: updateData,
     });
+
+    await auditLog({
+      action: "TASK_STATUS_CHANGE",
+      userId: session.user.id,
+      details: { taskId: id, caseId: task.caseId, changes: updateData },
+      path: `/api/tasks/${id}`,
+    });
+
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });

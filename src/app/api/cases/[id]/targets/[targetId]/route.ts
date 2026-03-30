@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { auditLog } from "@/lib/audit-log";
 
 const VALID_STATUSES = ["PENDING", "DISCLOSED", "IDENTIFIED", "SETTLED"];
 
@@ -45,6 +46,14 @@ export async function PATCH(
       where: { id: targetId },
       data: updateData,
     });
+
+    await auditLog({
+      action: "TARGET_UPDATED",
+      userId: session.user.id,
+      details: { caseId, targetId, changes: updateData },
+      path: `/api/cases/${caseId}/targets/${targetId}`,
+    });
+
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
@@ -71,6 +80,14 @@ export async function DELETE(
     }
 
     await prisma.caseTarget.delete({ where: { id: targetId } });
+
+    await auditLog({
+      action: "TARGET_DELETED",
+      userId: session.user.id,
+      details: { caseId, targetId, snsType: target.snsType },
+      path: `/api/cases/${caseId}/targets/${targetId}`,
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });

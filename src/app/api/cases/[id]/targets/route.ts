@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { auditLog } from "@/lib/audit-log";
 
 export async function POST(
   request: Request,
@@ -41,6 +42,14 @@ export async function POST(
         note: (body.note as string) || null,
       },
     });
+
+    await auditLog({
+      action: "TARGET_CREATED",
+      userId: session.user.id,
+      details: { caseId, targetId: target.id, snsType: body.snsType },
+      path: `/api/cases/${caseId}/targets`,
+    });
+
     return NextResponse.json(target);
   } catch {
     return NextResponse.json({ error: "追加に失敗しました" }, { status: 500 });

@@ -21,6 +21,13 @@ const consultationSchema = z.object({
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // Honeypot check (hidden field that bots fill in)
+    if (body.website || body.company) {
+      // Silently reject spam - return success to not tip off bots
+      return NextResponse.json({ success: true });
+    }
+
     const data = consultationSchema.parse(body);
 
     const consultation = await prisma.consultation.create({

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getFeeItem } from "@/lib/fees";
+import { auditLog } from "@/lib/audit-log";
 
 export async function GET(
   request: Request,
@@ -104,6 +105,14 @@ export async function POST(
         isVisibleToClient: Boolean(body.isVisibleToClient) || false,
       },
     });
+
+    await auditLog({
+      action: "BILLING_CREATED",
+      userId: session.user.id,
+      details: { caseId, billingId: billing.id, label, amount },
+      path: `/api/cases/${caseId}/billing`,
+    });
+
     return NextResponse.json(billing);
   } catch {
     return NextResponse.json({ error: "追加に失敗しました" }, { status: 500 });

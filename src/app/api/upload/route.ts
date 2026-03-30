@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { uploadFile } from "@/lib/storage";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 const ALLOWED_TYPES = [
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
+    const caseId = formData.get("caseId") as string | null;
 
     if (files.length === 0) {
       return NextResponse.json(
@@ -47,15 +49,28 @@ export async function POST(request: Request) {
         );
       }
 
-      const buffer = await file.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString("base64");
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const folder = caseId ? `cases/${caseId}` : "uploads";
+      const { url, isBase64 } = await uploadFile(buffer, file.name, file.type, folder);
 
-      processed.push({
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-        data: base64,
-      });
+      if (isBase64) {
+        // Fallback: return base64 data for backward compatibility
+        processed.push({
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          data: buffer.toString("base64"),
+        });
+      } else {
+        // Supabase Storage: return URL
+        processed.push({
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          url,
+          data: undefined,
+        });
+      }
     }
 
     return NextResponse.json({ success: true, files: processed });
