@@ -26,6 +26,10 @@ export async function PATCH(
     return NextResponse.json({ error: "無効なステータスです" }, { status: 400 });
   }
 
+  if (body.amount !== undefined && (typeof body.amount !== "number" || body.amount < 0)) {
+    return NextResponse.json({ error: "金額は0以上の数値で入力してください" }, { status: 400 });
+  }
+
   try {
     const billing = await prisma.caseBilling.findFirst({
       where: { id: billingId, caseId },

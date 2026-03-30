@@ -1,15 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
-
-const statusLabels: Record<string, string> = {
-  ACCEPTED: "受任",
-  INJUNCTION_FILED: "仮処分申立",
-  DISCLOSURE_REQUESTED: "開示請求中",
-  DISCLOSURE_RECEIVED: "開示完了",
-  LAWSUIT_FILED: "訴訟提起",
-  SETTLED: "和解",
-  CLOSED: "終了",
-};
+import { getCaseStatusLabel } from "@/lib/constants";
 
 export async function createNotification({
   userId,
@@ -40,8 +31,8 @@ export async function notifyStatusChange(
   });
   if (!caseData?.clientUser) return;
 
-  const oldLabel = statusLabels[oldStatus] || oldStatus;
-  const newLabel = statusLabels[newStatus] || newStatus;
+  const oldLabel = getCaseStatusLabel(oldStatus);
+  const newLabel = getCaseStatusLabel(newStatus);
   const title = "案件のステータスが更新されました";
   const body = `${oldLabel} → ${newLabel}`;
 

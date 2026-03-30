@@ -13,7 +13,13 @@ export async function POST(
   }
 
   const { id } = await params;
-  const body = await request.json();
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "不正なリクエストです" }, { status: 400 });
+  }
 
   if (!body.content || typeof body.content !== "string" || body.content.trim().length === 0) {
     return NextResponse.json({ error: "メッセージを入力してください" }, { status: 400 });

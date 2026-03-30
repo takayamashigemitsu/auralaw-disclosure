@@ -58,6 +58,17 @@ export async function GET(
 
   const { id: caseId } = await params;
 
+  // CLIENT は自分の案件のみ閲覧可能
+  const role = session.user.role;
+  if (role === "CLIENT") {
+    const caseData = await prisma.case.findFirst({
+      where: { id: caseId, clientUserId: session.user.id },
+    });
+    if (!caseData) {
+      return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+    }
+  }
+
   try {
     const targets = await prisma.caseTarget.findMany({
       where: { caseId },

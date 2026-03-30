@@ -386,7 +386,7 @@ export async function generateTasksForStatusChange(
     sortOrder: t.sortOrder,
   }));
 
-  await prisma.caseTask.createMany({ data: tasksData });
+  await prisma.caseTask.createMany({ data: tasksData, skipDuplicates: true });
 
   // タイムラインに自動記録
   await prisma.caseTimeline.create({

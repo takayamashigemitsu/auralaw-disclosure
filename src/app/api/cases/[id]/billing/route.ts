@@ -82,6 +82,10 @@ export async function POST(
     amount = feeItem.amount;
   }
 
+  if (amount < 0) {
+    return NextResponse.json({ error: "金額は0以上で入力してください" }, { status: 400 });
+  }
+
   // 案件存在確認
   const caseData = await prisma.case.findUnique({ where: { id: caseId } });
   if (!caseData) {
