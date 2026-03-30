@@ -10,8 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Briefcase, Loader2, Save } from "lucide-react";
+import { Briefcase, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { CONSULTATION_STATUS } from "@/lib/constants";
 
 type Consultation = {
   id: string;
@@ -21,6 +22,14 @@ type Consultation = {
   status: string;
   content: string;
 };
+
+const STATUS_OPTIONS = Object.entries(CONSULTATION_STATUS).map(
+  ([value, config]) => ({ value, label: config.label })
+);
+
+function getStatusLabel(value: string): string {
+  return (CONSULTATION_STATUS as Record<string, { label: string }>)[value]?.label ?? value;
+}
 
 export function ConsultationActions({
   consultation,
@@ -55,6 +64,11 @@ export function ConsultationActions({
   }
 
   async function convertToCase() {
+    const confirmed = window.confirm(
+      "この相談を案件化しますか？案件化すると案件が新規作成されます。"
+    );
+    if (!confirmed) return;
+
     setConverting(true);
     try {
       const res = await fetch(`/api/consultations/${consultation.id}/convert`, {
@@ -74,13 +88,16 @@ export function ConsultationActions({
     <div className="flex items-center gap-2">
       <Select value={status} onValueChange={updateStatus} disabled={loading}>
         <SelectTrigger className="w-32">
-          <SelectValue />
+          <SelectValue>
+            {getStatusLabel(status)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="NEW">新規</SelectItem>
-          <SelectItem value="IN_PROGRESS">対応中</SelectItem>
-          <SelectItem value="RESOLVED">解決済</SelectItem>
-          <SelectItem value="CONVERTED">案件化済</SelectItem>
+          {STATUS_OPTIONS.map((s) => (
+            <SelectItem key={s.value} value={s.value}>
+              {s.label}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

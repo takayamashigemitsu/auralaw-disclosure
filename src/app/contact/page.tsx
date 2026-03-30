@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import {
 import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 import { FileUpload } from "@/components/file-upload";
+import { SNS_OPTIONS } from "@/lib/constants";
 import {
   MessageSquare,
   Loader2,
@@ -27,16 +28,6 @@ import {
   CheckCircle,
 } from "lucide-react";
 
-const snsOptions = [
-  { value: "X", label: "X（旧Twitter）" },
-  { value: "INSTAGRAM", label: "Instagram" },
-  { value: "FACEBOOK", label: "Facebook" },
-  { value: "YOUTUBE", label: "YouTube" },
-  { value: "TIKTOK", label: "TikTok" },
-  { value: "FIVECH", label: "5ちゃんねる" },
-  { value: "OTHER", label: "その他" },
-];
-
 type UploadedFile = {
   fileName: string;
   fileSize: number;
@@ -45,25 +36,151 @@ type UploadedFile = {
   preview?: string;
 };
 
+// --- Validation helpers ---
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Japanese phone: 0X0-XXXX-XXXX, 0X-XXXX-XXXX, 0120-XXX-XXX, etc.
+const PHONE_REGEX = /^0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{2,4}$/;
+
+const CONTENT_MAX = 2000;
+
+function validateName(value: string): string | null {
+  if (!value.trim()) return "お名前を入力してください";
+  if (value.trim().length > 50)
+    return "お名前は50文字以内で入力してください";
+  return null;
+}
+
+function validateEmail(value: string): string | null {
+  if (!value.trim()) return "メールアドレスを入力してください";
+  if (!EMAIL_REGEX.test(value))
+    return "正しいメールアドレスの形式で入力してください";
+  return null;
+}
+
+function validatePhone(value: string): string | null {
+  if (!value.trim()) return null; // optional
+  if (!PHONE_REGEX.test(value.trim()))
+    return "電話番号の形式が正しくありません（例: 090-1234-5678）";
+  return null;
+}
+
+function validateSnsType(value: string): string | null {
+  if (!value) return "SNS・サイトを選択してください";
+  return null;
+}
+
+function validateContent(value: string): string | null {
+  if (!value.trim()) return "被害の状況を入力してください";
+  if (value.trim().length < 10)
+    return "被害の状況は10文字以上で入力してください";
+  if (value.length > CONTENT_MAX)
+    return `${CONTENT_MAX}文字以内で入力してください`;
+  return null;
+}
+
 export default function ContactPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  // Controlled form values for real-time validation
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [snsType, setSnsType] = useState("");
+  const [content, setContent] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
+
+  // Mark a field as touched (on blur)
+  const handleBlur = useCallback(
+    (field: string) => {
+      setTouched((prev) => ({ ...prev, [field]: true }));
+
+      // Run validation for the blurred field
+      let error: string | null = null;
+      switch (field) {
+        case "name":
+          error = validateName(name);
+          break;
+        case "email":
+          error = validateEmail(email);
+          break;
+        case "phone":
+          error = validatePhone(phone);
+          break;
+        case "snsType":
+          error = validateSnsType(snsType);
+          break;
+        case "content":
+          error = validateContent(content);
+          break;
+      }
+      setErrors((prev) => {
+        const next = { ...prev };
+        if (error) {
+          next[field] = error;
+        } else {
+          delete next[field];
+        }
+        return next;
+      });
+    },
+    [name, email, phone, snsType, content]
+  );
+
+  // Whether the submit button should be enabled
+  const isFormValid = useMemo(() => {
+    return (
+      name.trim().length >= 1 &&
+      name.trim().length <= 50 &&
+      EMAIL_REGEX.test(email) &&
+      !!snsType &&
+      content.trim().length >= 10 &&
+      content.length <= CONTENT_MAX
+    );
+  }, [name, email, snsType, content]);
+
+  // Validate all fields and return true if valid
+  function validateAll(): boolean {
+    const newErrors: Record<string, string> = {};
+    const nameErr = validateName(name);
+    if (nameErr) newErrors.name = nameErr;
+    const emailErr = validateEmail(email);
+    if (emailErr) newErrors.email = emailErr;
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) newErrors.phone = phoneErr;
+    const snsErr = validateSnsType(snsType);
+    if (snsErr) newErrors.snsType = snsErr;
+    const contentErr = validateContent(content);
+    if (contentErr) newErrors.content = contentErr;
+
+    setErrors(newErrors);
+    setTouched({
+      name: true,
+      email: true,
+      phone: true,
+      snsType: true,
+      content: true,
+    });
+    return Object.keys(newErrors).length === 0;
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!validateAll()) return;
+
     setLoading(true);
     setErrors({});
 
-    const formData = new FormData(e.currentTarget);
     const data = {
-      name: formData.get("name") as string,
-      email: formData.get("email") as string,
-      phone: formData.get("phone") as string,
-      snsType: snsType,
-      content: formData.get("content") as string,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      snsType,
+      content: content.trim(),
       files: files.map(({ fileName, fileSize, mimeType, data }) => ({
         fileName,
         fileSize,
@@ -82,15 +199,38 @@ export default function ContactPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        if (result.errors) {
-          const fieldErrors: Record<string, string> = {};
+        const fieldErrors: Record<string, string> = {};
+
+        if (result.errors && Array.isArray(result.errors)) {
+          // ZodError format: errors is an array of { path, message }
           for (const err of result.errors) {
-            if (err.path?.[0]) {
-              fieldErrors[err.path[0]] = err.message;
+            const field = err.path?.[0];
+            if (field && typeof field === "string") {
+              // Keep only the first error per field
+              if (!fieldErrors[field]) {
+                fieldErrors[field] = err.message;
+              }
             }
           }
-          setErrors(fieldErrors);
         }
+
+        // Fallback: if API returned a top-level message but no field errors
+        if (
+          Object.keys(fieldErrors).length === 0 &&
+          result.message
+        ) {
+          fieldErrors.form = result.message;
+        } else if (
+          Object.keys(fieldErrors).length === 0 &&
+          result.error
+        ) {
+          fieldErrors.form =
+            typeof result.error === "string"
+              ? result.error
+              : "送信に失敗しました。入力内容をご確認ください。";
+        }
+
+        setErrors(fieldErrors);
         setLoading(false);
         return;
       }
@@ -102,6 +242,11 @@ export default function ContactPage() {
       });
       setLoading(false);
     }
+  }
+
+  // Helper to compute border class for invalid fields
+  function fieldBorderClass(field: string): string {
+    return touched[field] && errors[field] ? "border-red-500" : "";
   }
 
   return (
@@ -169,9 +314,13 @@ export default function ContactPage() {
                         id="name"
                         name="name"
                         placeholder="山田 太郎"
-                        required
+                        maxLength={50}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onBlur={() => handleBlur("name")}
+                        className={fieldBorderClass("name")}
                       />
-                      {errors.name && (
+                      {touched.name && errors.name && (
                         <p className="text-sm text-red-500">{errors.name}</p>
                       )}
                     </div>
@@ -182,7 +331,21 @@ export default function ContactPage() {
                         name="phone"
                         type="tel"
                         placeholder="090-1234-5678"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        onBlur={() => handleBlur("phone")}
+                        className={fieldBorderClass("phone")}
                       />
+                      {touched.phone && errors.phone ? (
+                        <p className="text-sm text-red-500">{errors.phone}</p>
+                      ) : (
+                        phone.trim() &&
+                        !errors.phone && (
+                          <p className="text-sm text-gray-400">
+                            例: 090-1234-5678 / 03-1234-5678
+                          </p>
+                        )
+                      )}
                     </div>
                   </div>
 
@@ -195,9 +358,12 @@ export default function ContactPage() {
                       name="email"
                       type="email"
                       placeholder="example@email.com"
-                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => handleBlur("email")}
+                      className={fieldBorderClass("email")}
                     />
-                    {errors.email && (
+                    {touched.email && errors.email && (
                       <p className="text-sm text-red-500">{errors.email}</p>
                     )}
                   </div>
@@ -209,24 +375,39 @@ export default function ContactPage() {
                     </Label>
                     <Select
                       value={snsType}
-                      onValueChange={(v) => v && setSnsType(v)}
+                      onValueChange={(v) => {
+                        if (v) {
+                          setSnsType(v);
+                          // Clear error immediately on selection
+                          setTouched((prev) => ({ ...prev, snsType: true }));
+                          setErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.snsType;
+                            return next;
+                          });
+                        }
+                      }}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger
+                        className={`w-full ${fieldBorderClass("snsType")}`}
+                        onBlur={() => handleBlur("snsType")}
+                      >
                         <SelectValue placeholder="SNSを選択">
                           {snsType
-                            ? snsOptions.find((o) => o.value === snsType)?.label
+                            ? SNS_OPTIONS.find((o) => o.value === snsType)
+                                ?.label
                             : "SNSを選択"}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {snsOptions.map((o) => (
+                        {SNS_OPTIONS.map((o) => (
                           <SelectItem key={o.value} value={o.value}>
                             {o.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {errors.snsType && (
+                    {touched.snsType && errors.snsType && (
                       <p className="text-sm text-red-500">{errors.snsType}</p>
                     )}
                   </div>
@@ -240,11 +421,30 @@ export default function ContactPage() {
                       name="content"
                       placeholder="いつ頃から、どのような投稿をされているかなど、わかる範囲でお書きください。スクリーンショットを添付いただければ、詳しく書かなくても大丈夫です。"
                       rows={5}
-                      required
+                      maxLength={CONTENT_MAX}
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      onBlur={() => handleBlur("content")}
+                      className={fieldBorderClass("content")}
                     />
-                    {errors.content && (
-                      <p className="text-sm text-red-500">{errors.content}</p>
-                    )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-h-[1.25rem]">
+                        {touched.content && errors.content && (
+                          <p className="text-sm text-red-500">
+                            {errors.content}
+                          </p>
+                        )}
+                      </div>
+                      <p
+                        className={`shrink-0 text-sm ${
+                          content.length > CONTENT_MAX
+                            ? "text-red-500"
+                            : "text-gray-400"
+                        }`}
+                      >
+                        {content.length} / {CONTENT_MAX}文字
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -256,7 +456,7 @@ export default function ContactPage() {
                   type="submit"
                   className="w-full"
                   size="lg"
-                  disabled={loading}
+                  disabled={loading || !isFormValid}
                 >
                   {loading ? (
                     <>

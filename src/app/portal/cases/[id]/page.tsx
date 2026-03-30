@@ -3,17 +3,22 @@ import { prisma } from "@/lib/prisma";
 import { redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, Circle, Clock, FileText } from "lucide-react";
+import { CheckCircle, Circle, Clock, FileText, Banknote } from "lucide-react";
 import { PortalMessageForm } from "./portal-message-form";
+import {
+  getCaseStatusLabel,
+  getCaseStatusColor,
+  getSnsLabel,
+  getBillingStatusLabel,
+  getBillingStatusColor,
+  CASE_STATUS_LIST,
+} from "@/lib/constants";
+import { formatYen } from "@/lib/fees";
 
-const allStatuses = [
-  { key: "ACCEPTED", label: "受任" },
-  { key: "INJUNCTION_FILED", label: "仮処分申立" },
-  { key: "DISCLOSURE_REQUESTED", label: "開示請求" },
-  { key: "DISCLOSURE_RECEIVED", label: "開示完了" },
-  { key: "LAWSUIT_FILED", label: "訴訟提起" },
-  { key: "SETTLED", label: "和解・解決" },
-];
+const allStatuses = CASE_STATUS_LIST.map((s) => ({
+  key: s.value,
+  label: s.label,
+}));
 
 function getStepIndex(status: string): number {
   const idx = allStatuses.findIndex((s) => s.key === status);
@@ -45,6 +50,10 @@ export default async function PortalCaseDetailPage({
         where: { isSharedWithClient: true },
         orderBy: { createdAt: "desc" },
       },
+      billings: {
+        where: { isVisibleToClient: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -56,10 +65,25 @@ export default async function PortalCaseDetailPage({
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-900">案件の進捗</h1>
 
+      {/* SNS / Platform info */}
+      {caseData.snsType && (
+        <p className="text-sm text-gray-600">
+          対象サイト: <span className="font-medium">{getSnsLabel(caseData.snsType)}</span>
+        </p>
+      )}
+
+      {/* Status badge */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-600">現在のステータス:</span>
+        <span className={`rounded-full px-3 py-1 text-xs font-medium ${getCaseStatusColor(caseData.status)}`}>
+          {getCaseStatusLabel(caseData.status)}
+        </span>
+      </div>
+
       {/* Step bar */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
+        <CardContent className="pt-6 overflow-x-auto">
+          <div className="flex items-center justify-between min-w-[600px]">
             {allStatuses.map((s, i) => {
               const isComplete = i <= currentStep;
               const isCurrent = i === currentStep;
@@ -176,12 +200,63 @@ export default async function PortalCaseDetailPage({
         </Card>
       )}
 
+      {/* Billing / 費用情報 */}
+      {caseData.billings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              <Banknote className="mr-2 inline h-4 w-4" />
+              費用情報
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {caseData.billings.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{b.label}</p>
+                    {b.note && (
+                      <p className="text-xs text-gray-400">{b.note}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${getBillingStatusColor(b.status)}`}
+                    >
+                      {getBillingStatusLabel(b.status)}
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {formatYen(b.amount)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Separator className="my-3" />
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-gray-700">合計</span>
+              <span className="text-base font-bold text-gray-900">
+                {formatYen(
+                  caseData.billings.reduce((sum, b) => sum + b.amount, 0)
+                )}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-gray-400">
+              ※費用の詳細はスタッフまでお問い合わせください。
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Messages */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">メッセージ</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-3 sm:px-6">
           {caseData.messages.length === 0 ? (
             <p className="text-sm text-gray-500">
               メッセージはありません。
@@ -193,11 +268,11 @@ export default async function PortalCaseDetailPage({
                   key={m.id}
                   className={`rounded-lg p-3 ${
                     m.isFromClient
-                      ? "bg-blue-50 ml-8 text-right"
-                      : "bg-gray-50 mr-8"
+                      ? "bg-blue-50 ml-4 sm:ml-8 text-right"
+                      : "bg-gray-50 mr-4 sm:mr-8"
                   }`}
                 >
-                  <p className="text-sm">{m.content}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words">{m.content}</p>
                   <p className="mt-1 text-xs text-gray-400">
                     {m.isFromClient ? "あなた" : "事務所"} /{" "}
                     {new Date(m.createdAt).toLocaleString("ja-JP")}

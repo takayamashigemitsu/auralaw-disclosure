@@ -74,6 +74,32 @@ export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
   OTHER: "その他",
 };
 
+// ─── 費用ステータス ───
+export const BILLING_STATUS = {
+  ESTIMATED: { label: "見積", color: "bg-gray-100 text-gray-700" },
+  CONFIRMED: { label: "確定", color: "bg-blue-100 text-blue-700" },
+  INVOICED: { label: "請求済", color: "bg-yellow-100 text-yellow-700" },
+  PAID: { label: "入金済", color: "bg-green-100 text-green-700" },
+} as const;
+
+export type BillingStatusKey = keyof typeof BILLING_STATUS;
+
+export const BILLING_STATUS_LIST = Object.entries(BILLING_STATUS).map(
+  ([value, config]) => ({
+    value,
+    label: config.label,
+    color: config.color,
+  })
+);
+
+export function getBillingStatusLabel(status: string): string {
+  return (BILLING_STATUS as Record<string, { label: string }>)[status]?.label || status;
+}
+
+export function getBillingStatusColor(status: string): string {
+  return (BILLING_STATUS as Record<string, { color: string }>)[status]?.color || "bg-gray-100 text-gray-700";
+}
+
 /**
  * 英語enum値を日本語ラベルに変換するヘルパー
  */

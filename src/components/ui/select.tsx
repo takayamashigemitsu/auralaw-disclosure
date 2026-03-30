@@ -18,13 +18,25 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
+function SelectValue({
+  className,
+  children,
+  placeholder,
+  ...props
+}: Omit<SelectPrimitive.Value.Props, "children"> & {
+  children?: React.ReactNode;
+  placeholder?: string;
+}) {
+  // Base UI の SelectValue は value 属性（英語enum値）をそのまま表示してしまう。
+  // children が渡された場合は完全にBase UIを迂回し、span で直接レンダリングする。
+  // placeholder のみの場合もBase UIのValueを使う（初期表示用）。
   return (
-    <SelectPrimitive.Value
+    <span
       data-slot="select-value"
       className={cn("flex flex-1 text-left", className)}
-      {...props}
-    />
+    >
+      {children ?? placeholder ?? ""}
+    </span>
   )
 }
 

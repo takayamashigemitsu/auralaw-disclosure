@@ -18,6 +18,8 @@ type TimelineEntry = {
   isVisibleToClient: boolean;
 };
 
+const DESCRIPTION_MAX_LENGTH = 500;
+
 export function CaseTimelineSection({
   caseId,
   timelines,
@@ -28,11 +30,50 @@ export function CaseTimelineSection({
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [titleError, setTitleError] = useState("");
+  const [dateError, setDateError] = useState("");
+  const [descriptionLength, setDescriptionLength] = useState(0);
+
+  function validateTitle(value: string): boolean {
+    if (!value || value.trim().length < 1) {
+      setTitleError("タイトルは1文字以上入力してください");
+      return false;
+    }
+    setTitleError("");
+    return true;
+  }
+
+  function validateDate(value: string): boolean {
+    if (!value) {
+      setDateError("日付を入力してください");
+      return false;
+    }
+    const selected = new Date(value);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (selected > today) {
+      setDateError("未来の日付は指定できません");
+      return false;
+    }
+    setDateError("");
+    return true;
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     const formData = new FormData(e.currentTarget);
+
+    const title = (formData.get("title") as string) || "";
+    const date = (formData.get("date") as string) || "";
+
+    const isTitleValid = validateTitle(title);
+    const isDateValid = validateDate(date);
+
+    if (!isTitleValid || !isDateValid) {
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch(`/api/cases/${caseId}/timeline`, {
@@ -45,12 +86,22 @@ export function CaseTimelineSection({
           isVisibleToClient: formData.get("isVisibleToClient") === "on",
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const message =
+          data?.error || data?.message || `サーバーエラー (${res.status})`;
+        throw new Error(message);
+      }
       toast.success("タイムラインを追加しました");
       setShowForm(false);
+      setTitleError("");
+      setDateError("");
+      setDescriptionLength(0);
       router.refresh();
-    } catch {
-      toast.error("追加に失敗しました");
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "追加に失敗しました";
+      toast.error(`タイムラインの追加に失敗しました: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -70,11 +121,29 @@ export function CaseTimelineSection({
           <form onSubmit={handleSubmit} className="mb-6 space-y-3 rounded-lg border p-4">
             <div className="space-y-1">
               <Label>タイトル</Label>
-              <Input name="title" required placeholder="例: 仮処分決定" />
+              <Input
+                name="title"
+                required
+                placeholder="例: 仮処分決定"
+                onChange={(e) => validateTitle(e.target.value)}
+                className={titleError ? "border-red-500" : ""}
+              />
+              {titleError && (
+                <p className="text-xs text-red-500">{titleError}</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label>詳細</Label>
-              <Textarea name="description" placeholder="詳細を入力" rows={2} />
+              <Textarea
+                name="description"
+                placeholder="詳細を入力"
+                rows={2}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                onChange={(e) => setDescriptionLength(e.target.value.length)}
+              />
+              <p className="text-right text-xs text-gray-400">
+                {descriptionLength} / {DESCRIPTION_MAX_LENGTH}
+              </p>
             </div>
             <div className="space-y-1">
               <Label>日付</Label>
@@ -83,19 +152,30 @@ export function CaseTimelineSection({
                 type="date"
                 required
                 defaultValue={new Date().toISOString().split("T")[0]}
+                max={new Date().toISOString().split("T")[0]}
+                onChange={(e) => validateDate(e.target.value)}
+                className={dateError ? "border-red-500" : ""}
               />
+              {dateError && (
+                <p className="text-xs text-red-500">{dateError}</p>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="isVisibleToClient"
-                id="isVisibleToClient"
-                defaultChecked
-                className="rounded"
-              />
-              <Label htmlFor="isVisibleToClient" className="text-sm">
-                クライアントに表示する
-              </Label>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="isVisibleToClient"
+                  id="isVisibleToClient"
+                  defaultChecked
+                  className="rounded"
+                />
+                <Label htmlFor="isVisibleToClient" className="text-sm">
+                  クライアントに表示する
+                </Label>
+              </div>
+              <p className="text-xs text-gray-400 ml-6">
+                チェックを入れるとクライアントポータルに表示されます
+              </p>
             </div>
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={loading}>
@@ -106,7 +186,12 @@ export function CaseTimelineSection({
                 type="button"
                 size="sm"
                 variant="ghost"
-                onClick={() => setShowForm(false)}
+                onClick={() => {
+                  setShowForm(false);
+                  setTitleError("");
+                  setDateError("");
+                  setDescriptionLength(0);
+                }}
               >
                 キャンセル
               </Button>

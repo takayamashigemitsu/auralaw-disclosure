@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserPlus, Loader2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function InviteClientButton({
   caseId,
   defaultEmail,
@@ -21,9 +23,25 @@ export function InviteClientButton({
   const [email, setEmail] = useState(defaultEmail || "");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
+  function validateEmail(value: string): boolean {
+    if (!value) {
+      setEmailError("");
+      return false;
+    }
+    if (!EMAIL_REGEX.test(value)) {
+      setEmailError("有効なメールアドレスを入力してください");
+      return false;
+    }
+    setEmailError("");
+    return true;
+  }
 
   async function handleInvite() {
     if (!email) return;
+    if (!validateEmail(email)) return;
+
     setLoading(true);
     try {
       const res = await fetch("/api/clients/invite", {
@@ -69,14 +87,27 @@ export function InviteClientButton({
         <CardTitle className="text-sm">クライアント招待</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          招待メールが送信されます。有効期限は7日間です。
+        </p>
         <div className="space-y-1">
           <Label className="text-xs">メールアドレス</Label>
           <Input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (emailError) validateEmail(e.target.value);
+            }}
+            onBlur={() => {
+              if (email) validateEmail(email);
+            }}
             placeholder="client@example.com"
+            className={emailError ? "border-red-500" : ""}
           />
+          {emailError && (
+            <p className="text-xs text-red-500">{emailError}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button size="sm" onClick={handleInvite} disabled={loading || !email}>
@@ -87,9 +118,6 @@ export function InviteClientButton({
             キャンセル
           </Button>
         </div>
-        <p className="text-[10px] text-gray-400">
-          招待リンクの有効期限は7日間です
-        </p>
       </CardContent>
     </Card>
   );

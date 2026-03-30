@@ -20,16 +20,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-const snsOptions = [
-  { value: "X", label: "X（旧Twitter）" },
-  { value: "INSTAGRAM", label: "Instagram" },
-  { value: "FACEBOOK", label: "Facebook" },
-  { value: "YOUTUBE", label: "YouTube" },
-  { value: "TIKTOK", label: "TikTok" },
-  { value: "FIVECH", label: "5ちゃんねる" },
-  { value: "OTHER", label: "その他" },
-];
+import { getFeeItem, formatYen } from "@/lib/fees";
+import { SNS_OPTIONS } from "@/lib/constants";
 
 const procedureOptions = [
   {
@@ -56,8 +48,6 @@ type EstimateResult = {
   lawyerFeeMax: number;
   courtCostMin: number;
   courtCostMax: number;
-  successFeeMin: number;
-  successFeeMax: number;
   totalMin: number;
   totalMax: number;
 };
@@ -67,20 +57,35 @@ function calculateEstimate(
   procedure: string,
   postCount: string
 ): EstimateResult {
-  let baseLawyerFee = procedure === "new_procedure" ? 200000 : 300000;
-  let courtCost = procedure === "new_procedure" ? 30000 : 50000;
-  let successFee = 150000;
+  // Base lawyer fee from fee master
+  let baseLawyerFee: number;
+  if (procedure === "new_procedure") {
+    // 新制度: 開示命令申立（Google以外）= 22万円
+    baseLawyerFee = getFeeItem("order_non_google")?.amount ?? 220000;
+  } else {
+    // 従来制度: IPアドレス開示仮処分 + 住所・氏名等の開示請求訴訟（投稿数無制限）
+    const injunction = getFeeItem("individual_ip_injunction")?.amount ?? 220000;
+    const lawsuit = getFeeItem("individual_disclosure_lawsuit_unlimited")?.amount ?? 220000;
+    baseLawyerFee = injunction + lawsuit;
+  }
 
-  // SNS difficulty modifier
-  if (sns === "FIVECH") {
+  let courtCost = procedure === "new_procedure" ? 30000 : 50000;
+
+  // SNS modifier
+  if (sns === "GOOGLE_REVIEW" || sns === "YOUTUBE") {
+    // Google系: 開示命令申立（Google）との差額分を上乗せ
+    const googleFee = getFeeItem("order_google")?.amount ?? 330000;
+    const nonGoogleFee = getFeeItem("order_non_google")?.amount ?? 220000;
+    baseLawyerFee += googleFee - nonGoogleFee;
+  } else if (sns === "FIVECH") {
     baseLawyerFee *= 0.9;
   } else if (sns === "INSTAGRAM" || sns === "TIKTOK") {
     baseLawyerFee *= 1.1;
-  } else if (sns === "OTHER") {
+  } else if (sns === "OTHER" || sns === "BLOG") {
     baseLawyerFee *= 1.2;
   }
 
-  // Post count modifier
+  // Post count multiplier
   const countMultiplier =
     postCount === "1"
       ? 1
@@ -91,29 +96,20 @@ function calculateEstimate(
           : 2.0;
 
   baseLawyerFee *= countMultiplier;
-  successFee *= countMultiplier;
 
   const lawyerFeeMin = Math.round(baseLawyerFee / 10000) * 10000;
   const lawyerFeeMax = Math.round((baseLawyerFee * 1.5) / 10000) * 10000;
   const courtCostMin = courtCost;
   const courtCostMax = courtCost * 2;
-  const successFeeMin = Math.round(successFee / 10000) * 10000;
-  const successFeeMax = Math.round((successFee * 1.5) / 10000) * 10000;
 
   return {
     lawyerFeeMin,
     lawyerFeeMax,
     courtCostMin,
     courtCostMax,
-    successFeeMin,
-    successFeeMax,
-    totalMin: lawyerFeeMin + courtCostMin + successFeeMin,
-    totalMax: lawyerFeeMax + courtCostMax + successFeeMax,
+    totalMin: lawyerFeeMin + courtCostMin,
+    totalMax: lawyerFeeMax + courtCostMax,
   };
-}
-
-function formatYen(amount: number): string {
-  return `${(amount / 10000).toFixed(0)}万円`;
 }
 
 export default function SimulatorPage() {
@@ -152,11 +148,11 @@ export default function SimulatorPage() {
                 <Select value={sns} onValueChange={(v) => v && setSns(v)}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="SNSを選択">
-                      {sns ? snsOptions.find((o) => o.value === sns)?.label : "SNSを選択"}
+                      {sns ? SNS_OPTIONS.find((o) => o.value === sns)?.label : "SNSを選択"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {snsOptions.map((o) => (
+                    {SNS_OPTIONS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
                       </SelectItem>
@@ -250,12 +246,9 @@ export default function SimulatorPage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-700">
-                      報酬金（発信者特定成功時）
-                    </span>
-                    <span className="font-semibold">
-                      {formatYen(result.successFeeMin)}〜
-                      {formatYen(result.successFeeMax)}
+                    <span className="text-gray-700">成功報酬</span>
+                    <span className="font-semibold text-green-700">
+                      なし
                     </span>
                   </div>
                   <div className="border-t pt-3">

@@ -15,6 +15,7 @@ import {
   getDocumentTypeLabel,
 } from "@/lib/constants";
 import { CaseTargetsSection } from "./case-targets";
+import { CaseBillingSection } from "./case-billing";
 
 export default async function CaseDetailPage({
   params,
@@ -34,6 +35,7 @@ export default async function CaseDetailPage({
       clientUser: true,
       aiAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
       invitations: { where: { usedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
+      billings: { orderBy: { createdAt: "asc" } },
     },
   });
 
@@ -95,6 +97,12 @@ export default async function CaseDetailPage({
           <CaseTargetsSection
             caseId={caseData.id}
             targets={caseData.targets}
+          />
+
+          {/* Billing / 費用管理 */}
+          <CaseBillingSection
+            caseId={caseData.id}
+            billings={caseData.billings}
           />
 
           {/* Timeline */}

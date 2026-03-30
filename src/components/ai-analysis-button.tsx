@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 
 type AnalysisResult = {
   defamationLikelihood: string;
@@ -49,6 +50,7 @@ export function AIAnalysisButton({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setResult(data);
+      toast.success("AI分析が完了しました");
     } catch (e) {
       setError(e instanceof Error ? e.message : "分析に失敗しました");
     } finally {
@@ -58,20 +60,37 @@ export function AIAnalysisButton({
 
   return (
     <div className="space-y-3">
-      <Button
-        onClick={handleAnalyze}
-        disabled={loading || !hasImages}
-        variant="outline"
-        size="sm"
-        className="gap-2"
-      >
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Sparkles className="h-4 w-4 text-purple-600" />
+      <div className="flex items-center gap-2">
+        <Button
+          onClick={handleAnalyze}
+          disabled={loading || !hasImages}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4 text-purple-600" />
+          )}
+          {loading ? "分析中..." : "AI分析"}
+        </Button>
+        {error && (
+          <Button
+            onClick={handleAnalyze}
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-red-600 hover:text-red-700"
+            disabled={loading}
+          >
+            <RotateCcw className="h-3 w-3" />
+            再試行
+          </Button>
         )}
-        {loading ? "分析中..." : "AI分析"}
-      </Button>
+      </div>
+      {loading && (
+        <p className="text-xs text-gray-500">分析には数秒かかります</p>
+      )}
       {!hasImages && (
         <p className="text-xs text-gray-400">画像がないため分析できません</p>
       )}
