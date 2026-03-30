@@ -9,9 +9,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
-  const { email, caseId } = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "不正なリクエストです" }, { status: 400 });
+  }
 
-  if (!email || !caseId) {
+  const email = body.email as string | undefined;
+  const caseId = body.caseId as string | undefined;
+
+  if (!email || typeof email !== "string" || !caseId || typeof caseId !== "string") {
     return NextResponse.json({ error: "メールアドレスと案件IDが必要です" }, { status: 400 });
   }
 

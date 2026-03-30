@@ -12,7 +12,13 @@ export async function POST(
   }
 
   const { id } = await params;
-  const body = await request.json();
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "不正なリクエストです" }, { status: 400 });
+  }
 
   // バリデーション
   if (!body.title || typeof body.title !== "string") {
@@ -22,7 +28,7 @@ export async function POST(
     return NextResponse.json({ error: "日付は必須です" }, { status: 400 });
   }
 
-  const date = new Date(body.date);
+  const date = new Date(body.date as string);
   if (isNaN(date.getTime())) {
     return NextResponse.json({ error: "無効な日付形式です" }, { status: 400 });
   }
@@ -31,10 +37,10 @@ export async function POST(
     const timeline = await prisma.caseTimeline.create({
       data: {
         caseId: id,
-        title: body.title.trim(),
-        description: body.description?.trim() || null,
+        title: (body.title as string).trim(),
+        description: (body.description as string)?.trim() || null,
         date,
-        isVisibleToClient: body.isVisibleToClient ?? true,
+        isVisibleToClient: (body.isVisibleToClient as boolean) ?? true,
       },
     });
     return NextResponse.json(timeline);

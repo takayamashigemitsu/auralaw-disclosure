@@ -22,14 +22,8 @@ export async function GET(request: Request) {
     include: { case: { select: { clientName: true } } },
   });
 
-  if (!invitation) {
+  if (!invitation || invitation.usedAt || invitation.expiresAt < new Date()) {
     return NextResponse.json({ error: "無効な招待リンクです" }, { status: 404 });
-  }
-  if (invitation.usedAt) {
-    return NextResponse.json({ error: "この招待は既に使用済みです" }, { status: 410 });
-  }
-  if (invitation.expiresAt < new Date()) {
-    return NextResponse.json({ error: "招待リンクの有効期限が切れています" }, { status: 410 });
   }
 
   return NextResponse.json({
@@ -57,32 +51,35 @@ export async function POST(request: Request) {
       where: { email: invitation.email },
     });
 
-    let userId: string;
+    // トランザクションで原子的に実行（ユーザー作成・案件紐付け・招待消化）
+    await prisma.$transaction(async (tx) => {
+      let userId: string;
 
-    if (existingUser) {
-      userId = existingUser.id;
-    } else {
-      const user = await prisma.user.create({
-        data: {
-          email: invitation.email,
-          hashedPassword: hashSync(data.password, 10),
-          name: data.name,
-          role: "CLIENT",
-        },
+      if (existingUser) {
+        userId = existingUser.id;
+      } else {
+        const user = await tx.user.create({
+          data: {
+            email: invitation.email,
+            hashedPassword: hashSync(data.password, 10),
+            name: data.name,
+            role: "CLIENT",
+          },
+        });
+        userId = user.id;
+      }
+
+      // Link user to case
+      await tx.case.update({
+        where: { id: invitation.caseId },
+        data: { clientUserId: userId },
       });
-      userId = user.id;
-    }
 
-    // Link user to case
-    await prisma.case.update({
-      where: { id: invitation.caseId },
-      data: { clientUserId: userId },
-    });
-
-    // Mark invitation as used
-    await prisma.clientInvitation.update({
-      where: { id: invitation.id },
-      data: { usedAt: new Date() },
+      // Mark invitation as used
+      await tx.clientInvitation.update({
+        where: { id: invitation.id },
+        data: { usedAt: new Date() },
+      });
     });
 
     return NextResponse.json({ success: true });

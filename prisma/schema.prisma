@@ -177,14 +177,14 @@ model AIAnalysis {
   isPlaceholder         Boolean  @default(false)
   createdAt             DateTime @default(now())
 
-  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   consultationId String?
 
-  case   Case?   @relation(fields: [caseId], references: [id])
+  case   Case?   @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId String?
 
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
 
   @@index([caseId])
   @@index([consultationId])

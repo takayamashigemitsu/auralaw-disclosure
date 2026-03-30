@@ -9,7 +9,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "権限がありません" }, { status: 403 });
   }
 
-  const { consultationId, caseId } = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "不正なリクエストです" }, { status: 400 });
+  }
+
+  const consultationId = body.consultationId as string | undefined;
+  const caseId = body.caseId as string | undefined;
+
+  if (!consultationId && !caseId) {
+    return NextResponse.json(
+      { error: "consultationIdまたはcaseIdが必須です" },
+      { status: 400 }
+    );
+  }
 
   let images: Array<{ data: string; mimeType: string }> = [];
   let context = "";
@@ -51,21 +66,25 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await analyzeScreenshots(images, context);
+  try {
+    const result = await analyzeScreenshots(images, context);
 
-  const analysis = await prisma.aIAnalysis.create({
-    data: {
-      consultationId: consultationId || null,
-      caseId: caseId || null,
-      userId: session.user.id,
-      defamationLikelihood: result.defamationLikelihood,
-      recommendedProcedure: result.recommendedProcedure,
-      estimatedCost: result.estimatedCost,
-      keyPoints: JSON.stringify(result.keyPoints),
-      rawResponse: result.rawResponse,
-      isPlaceholder: result.isPlaceholder,
-    },
-  });
+    const analysis = await prisma.aIAnalysis.create({
+      data: {
+        consultationId: consultationId || null,
+        caseId: caseId || null,
+        userId: session.user.id,
+        defamationLikelihood: result.defamationLikelihood,
+        recommendedProcedure: result.recommendedProcedure,
+        estimatedCost: result.estimatedCost,
+        keyPoints: JSON.stringify(result.keyPoints),
+        rawResponse: result.rawResponse,
+        isPlaceholder: result.isPlaceholder,
+      },
+    });
 
-  return NextResponse.json({ ...result, id: analysis.id });
+    return NextResponse.json({ ...result, id: analysis.id });
+  } catch {
+    return NextResponse.json({ error: "分析に失敗しました" }, { status: 500 });
+  }
 }
