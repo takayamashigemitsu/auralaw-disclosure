@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { notifyStatusChange } from "@/lib/notifications";
+import { generateTasksForStatusChange } from "@/lib/task-engine";
 
 const VALID_STATUSES = [
   "ACCEPTED",
@@ -98,6 +99,8 @@ export async function PATCH(
 
     if (body.status && oldStatus && body.status !== oldStatus) {
       notifyStatusChange(id, oldStatus, body.status as string).catch(console.error);
+      // タスク自動生成
+      generateTasksForStatusChange(id, body.status as string, new Date(), session.user.id).catch(console.error);
     }
 
     return NextResponse.json(caseData);

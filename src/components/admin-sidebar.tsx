@@ -15,11 +15,13 @@ import {
   Scale,
   Menu,
   X,
+  CheckSquare,
 } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
   { href: "/admin/dashboard", label: "ダッシュボード", icon: LayoutDashboard },
+  { href: "/admin/tasks", label: "タスク管理", icon: CheckSquare },
   { href: "/admin/consultations", label: "相談管理", icon: MessageSquare },
   { href: "/admin/cases", label: "案件管理", icon: Briefcase },
   { href: "/admin/documents", label: "書類管理", icon: FileText },

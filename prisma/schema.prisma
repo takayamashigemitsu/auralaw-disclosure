@@ -25,6 +25,8 @@ model User {
   caseDocuments CaseDocument[]
   notifications Notification[]
   aiAnalyses    AIAnalysis[]
+  assignedTasks CaseTask[]     @relation("TaskAssignee")
+  taskComments  TaskComment[]  @relation("TaskCommentAuthor")
 }
 
 model Consultation {
@@ -80,6 +82,7 @@ model Case {
   aiAnalyses  AIAnalysis[]
   invitations ClientInvitation[]
   billings    CaseBilling[]
+  tasks       CaseTask[]
 }
 
 model CaseTarget {
@@ -182,6 +185,46 @@ model ClientInvitation {
 
   case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId String
+}
+
+model CaseTask {
+  id           String    @id @default(cuid())
+  templateKey  String?   // タスクテンプレートのキー（自動生成時）
+  title        String
+  description  String?
+  category     String    @default("AUTO") // AUTO, MANUAL
+  priority     String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  status       String    @default("PENDING") // PENDING, IN_PROGRESS, DONE, SKIPPED
+  caseStatus   String    // どのステータスで生成されたか
+  dueDate      DateTime
+  sortOrder    Int       @default(0)
+  completedAt  DateTime?
+  completedBy  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  case       Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId     String
+  assignee   User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assigneeId String?
+  comments   TaskComment[]
+
+  @@index([caseId, status])
+  @@index([assigneeId, status, dueDate])
+  @@index([dueDate, status])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  task   CaseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId String
+  user   User     @relation("TaskCommentAuthor", fields: [userId], references: [id])
+  userId String
+
+  @@index([taskId, createdAt])
 }
 
 model CaseBilling {

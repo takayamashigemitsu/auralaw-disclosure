@@ -7,6 +7,8 @@ async function main() {
   console.log("🗑️  全データ削除中...");
 
   // 依存関係順に削除（子テーブルから）
+  await prisma.taskComment.deleteMany();
+  await prisma.caseTask.deleteMany();
   await prisma.caseBilling.deleteMany();
   await prisma.caseTarget.deleteMany();
   await prisma.caseTimeline.deleteMany();
@@ -973,6 +975,203 @@ async function main() {
   });
 
   console.log("📄 書類テンプレート作成完了");
+
+  // ═══════════════════════════════════════════
+  // 9. タスクデータ（リアルな進行状態を再現）
+  // ═══════════════════════════════════════════
+
+  const now = new Date();
+  const day = (d: number) => {
+    const r = new Date(now);
+    r.setDate(r.getDate() + d);
+    return r;
+  };
+  const past = (d: number) => day(-d);
+
+  // 案件A: YouTube — 開示請求中（一部タスク完了、一部進行中）
+  await prisma.caseTask.createMany({
+    data: [
+      {
+        caseId: caseA.id, templateKey: "accepted_screenshot", title: "対象投稿のスクリーンショット保全",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "ACCEPTED",
+        dueDate: past(40), assigneeId: staff.id, completedAt: past(39), completedBy: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseA.id, templateKey: "accepted_delegation", title: "委任契約書の作成",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "ACCEPTED",
+        dueDate: past(40), assigneeId: staff.id, completedAt: past(38), completedBy: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseA.id, templateKey: "accepted_payment", title: "着手金の入金確認",
+        category: "AUTO", priority: "URGENT", status: "DONE", caseStatus: "ACCEPTED",
+        dueDate: past(35), assigneeId: admin.id, completedAt: past(35), completedBy: admin.id, sortOrder: 3,
+      },
+      // 現在のステータス「DISCLOSURE_REQUESTED」のタスク
+      {
+        caseId: caseA.id, templateKey: "disclosure_send", title: "開示請求書の送付",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "DISCLOSURE_REQUESTED",
+        dueDate: past(10), assigneeId: staff.id, completedAt: past(9), completedBy: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseA.id, templateKey: "disclosure_opinion", title: "意見照会書への対応準備",
+        category: "AUTO", priority: "NORMAL", status: "IN_PROGRESS", caseStatus: "DISCLOSURE_REQUESTED",
+        dueDate: day(4), assigneeId: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseA.id, templateKey: "disclosure_followup_30", title: "1ヶ月経過フォローアップ",
+        category: "AUTO", priority: "HIGH", status: "PENDING", caseStatus: "DISCLOSURE_REQUESTED",
+        dueDate: day(20), assigneeId: staff.id, sortOrder: 3,
+      },
+      {
+        caseId: caseA.id, templateKey: "disclosure_deadline", title: "回答期限の管理（2ヶ月目安）",
+        category: "AUTO", priority: "URGENT", status: "PENDING", caseStatus: "DISCLOSURE_REQUESTED",
+        dueDate: day(50), assigneeId: admin.id, sortOrder: 4,
+      },
+    ],
+  });
+
+  // 案件B: 爆サイ① — 仮処分段階（いくつか期限超過！）
+  await prisma.caseTask.createMany({
+    data: [
+      {
+        caseId: caseB.id, templateKey: "accepted_payment", title: "着手金の入金確認",
+        category: "AUTO", priority: "URGENT", status: "DONE", caseStatus: "ACCEPTED",
+        dueDate: past(60), assigneeId: admin.id, completedAt: past(60), completedBy: admin.id, sortOrder: 1,
+      },
+      {
+        caseId: caseB.id, templateKey: "injunction_draft", title: "仮処分申立書の作成",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "INJUNCTION_FILED",
+        dueDate: past(25), assigneeId: staff.id, completedAt: past(24), completedBy: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseB.id, templateKey: "injunction_file", title: "裁判所への申立て",
+        category: "AUTO", priority: "URGENT", status: "DONE", caseStatus: "INJUNCTION_FILED",
+        dueDate: past(20), assigneeId: staff.id, completedAt: past(19), completedBy: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseB.id, templateKey: "injunction_hearing", title: "審尋期日の確認・準備",
+        category: "AUTO", priority: "NORMAL", status: "PENDING", caseStatus: "INJUNCTION_FILED",
+        dueDate: past(2), assigneeId: staff.id, sortOrder: 3,
+      },
+      {
+        caseId: caseB.id, templateKey: "injunction_service", title: "債務者への送達確認",
+        category: "AUTO", priority: "NORMAL", status: "PENDING", caseStatus: "INJUNCTION_FILED",
+        dueDate: day(1), assigneeId: staff.id, sortOrder: 4,
+      },
+    ],
+  });
+
+  // 案件C: 爆サイ② — 受任直後（全タスク未着手）
+  await prisma.caseTask.createMany({
+    data: [
+      {
+        caseId: caseC.id, templateKey: "accepted_screenshot", title: "対象投稿のスクリーンショット保全",
+        category: "AUTO", priority: "HIGH", status: "PENDING", caseStatus: "ACCEPTED",
+        dueDate: day(0), assigneeId: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseC.id, templateKey: "accepted_delegation", title: "委任契約書の作成",
+        category: "AUTO", priority: "HIGH", status: "PENDING", caseStatus: "ACCEPTED",
+        dueDate: day(0), assigneeId: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseC.id, templateKey: "accepted_send_delegation", title: "委任契約書の送付・署名確認",
+        category: "AUTO", priority: "HIGH", status: "PENDING", caseStatus: "ACCEPTED",
+        dueDate: day(2), assigneeId: staff.id, sortOrder: 3,
+      },
+      {
+        caseId: caseC.id, templateKey: "accepted_payment", title: "着手金の入金確認",
+        category: "AUTO", priority: "URGENT", status: "PENDING", caseStatus: "ACCEPTED",
+        dueDate: day(6), assigneeId: admin.id, sortOrder: 4,
+      },
+      {
+        caseId: caseC.id, templateKey: "accepted_records", title: "事件記録の整理",
+        category: "AUTO", priority: "NORMAL", status: "PENDING", caseStatus: "ACCEPTED",
+        dueDate: day(2), assigneeId: staff.id, sortOrder: 5,
+      },
+    ],
+  });
+
+  // 案件D: 5ch — 訴訟段階（多数のタスク完了＋進行中）
+  await prisma.caseTask.createMany({
+    data: [
+      {
+        caseId: caseD.id, templateKey: "lawsuit_draft", title: "訴状の作成",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "LAWSUIT_FILED",
+        dueDate: past(20), assigneeId: staff.id, completedAt: past(18), completedBy: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseD.id, templateKey: "lawsuit_file", title: "裁判所への訴状提出",
+        category: "AUTO", priority: "URGENT", status: "DONE", caseStatus: "LAWSUIT_FILED",
+        dueDate: past(15), assigneeId: staff.id, completedAt: past(14), completedBy: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseD.id, templateKey: "lawsuit_hearing", title: "第一回口頭弁論期日の確認",
+        category: "AUTO", priority: "NORMAL", status: "IN_PROGRESS", caseStatus: "LAWSUIT_FILED",
+        dueDate: day(5), assigneeId: staff.id, sortOrder: 3,
+      },
+      {
+        caseId: caseD.id, templateKey: "lawsuit_defense", title: "答弁書の確認・反論準備",
+        category: "AUTO", priority: "NORMAL", status: "PENDING", caseStatus: "LAWSUIT_FILED",
+        dueDate: day(20), assigneeId: staff.id, sortOrder: 4,
+      },
+      {
+        caseId: caseD.id, title: "裁判所提出用の追加証拠収集",
+        description: "クライアントの被害拡大を示す追加証拠を収集。",
+        category: "MANUAL", priority: "HIGH", status: "PENDING", caseStatus: "LAWSUIT_FILED",
+        dueDate: day(3), assigneeId: admin.id, sortOrder: 5,
+      },
+    ],
+  });
+
+  // 案件F: Instagram — プロバイダ請求段階
+  await prisma.caseTask.createMany({
+    data: [
+      {
+        caseId: caseF.id, templateKey: "provider_draft", title: "発信者情報開示請求書の作成",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "PROVIDER_REQUEST",
+        dueDate: past(8), assigneeId: staff.id, completedAt: past(7), completedBy: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseF.id, templateKey: "provider_send", title: "プロバイダへの請求書送付",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "PROVIDER_REQUEST",
+        dueDate: past(5), assigneeId: staff.id, completedAt: past(4), completedBy: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseF.id, templateKey: "provider_followup_30", title: "1ヶ月経過時のフォローアップ",
+        category: "AUTO", priority: "HIGH", status: "PENDING", caseStatus: "PROVIDER_REQUEST",
+        dueDate: day(22), assigneeId: staff.id, sortOrder: 3,
+      },
+      {
+        caseId: caseF.id, templateKey: "provider_monitor", title: "プロバイダ回答期限の監視",
+        category: "AUTO", priority: "NORMAL", status: "PENDING", caseStatus: "PROVIDER_REQUEST",
+        dueDate: day(52), assigneeId: admin.id, sortOrder: 4,
+      },
+    ],
+  });
+
+  // 案件E: 和解済み（全タスク完了）
+  await prisma.caseTask.createMany({
+    data: [
+      {
+        caseId: caseE.id, templateKey: "settled_confirm", title: "和解条件の確認",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "SETTLED",
+        dueDate: past(80), assigneeId: staff.id, completedAt: past(79), completedBy: staff.id, sortOrder: 1,
+      },
+      {
+        caseId: caseE.id, templateKey: "settled_agreement", title: "和解契約書の作成",
+        category: "AUTO", priority: "HIGH", status: "DONE", caseStatus: "SETTLED",
+        dueDate: past(75), assigneeId: staff.id, completedAt: past(74), completedBy: staff.id, sortOrder: 2,
+      },
+      {
+        caseId: caseE.id, templateKey: "settled_payment", title: "和解金の入金確認",
+        category: "AUTO", priority: "URGENT", status: "DONE", caseStatus: "SETTLED",
+        dueDate: past(50), assigneeId: admin.id, completedAt: past(48), completedBy: admin.id, sortOrder: 3,
+      },
+    ],
+  });
+
+  console.log("✅ タスクデータ作成完了");
 
   // ═══════════════════════════════════════════
   // 完了サマリ

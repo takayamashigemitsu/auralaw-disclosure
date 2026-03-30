@@ -16,6 +16,7 @@ import {
 } from "@/lib/constants";
 import { CaseTargetsSection } from "./case-targets";
 import { CaseBillingSection } from "./case-billing";
+import { CaseTasksSection } from "./case-tasks";
 
 export default async function CaseDetailPage({
   params,
@@ -36,6 +37,10 @@ export default async function CaseDetailPage({
       aiAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
       invitations: { where: { usedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
       billings: { orderBy: { createdAt: "asc" } },
+      tasks: {
+        orderBy: [{ sortOrder: "asc" }, { dueDate: "asc" }],
+        include: { assignee: { select: { id: true, name: true } } },
+      },
     },
   });
 
@@ -92,6 +97,24 @@ export default async function CaseDetailPage({
               </CardContent>
             </Card>
           )}
+
+          {/* Tasks / タスク管理（最重要セクション） */}
+          <CaseTasksSection
+            caseId={caseData.id}
+            tasks={caseData.tasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              description: t.description,
+              category: t.category,
+              priority: t.priority,
+              status: t.status,
+              caseStatus: t.caseStatus,
+              dueDate: t.dueDate.toISOString(),
+              assigneeId: t.assigneeId,
+              assignee: t.assignee,
+              completedAt: t.completedAt?.toISOString() || null,
+            }))}
+          />
 
           {/* Targets / 対象サイト・投稿 */}
           <CaseTargetsSection

@@ -74,6 +74,45 @@ export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
   OTHER: "その他",
 };
 
+// ─── タスクステータス ───
+export const TASK_STATUS = {
+  PENDING: { label: "未着手", color: "bg-gray-100 text-gray-700" },
+  IN_PROGRESS: { label: "進行中", color: "bg-blue-100 text-blue-700" },
+  DONE: { label: "完了", color: "bg-green-100 text-green-700" },
+  SKIPPED: { label: "スキップ", color: "bg-gray-100 text-gray-400" },
+} as const;
+
+export const TASK_PRIORITY = {
+  URGENT: { label: "緊急", color: "bg-red-100 text-red-700", textColor: "text-red-700" },
+  HIGH: { label: "高", color: "bg-orange-100 text-orange-700", textColor: "text-orange-700" },
+  NORMAL: { label: "通常", color: "bg-blue-100 text-blue-700", textColor: "text-blue-700" },
+  LOW: { label: "低", color: "bg-gray-100 text-gray-500", textColor: "text-gray-500" },
+} as const;
+
+export const TASK_STATUS_LIST = Object.entries(TASK_STATUS).map(
+  ([value, config]) => ({ value, label: config.label, color: config.color })
+);
+
+export const TASK_PRIORITY_LIST = Object.entries(TASK_PRIORITY).map(
+  ([value, config]) => ({ value, label: config.label, color: config.color })
+);
+
+export function getTaskStatusLabel(status: string): string {
+  return (TASK_STATUS as Record<string, { label: string }>)[status]?.label || status;
+}
+
+export function getTaskStatusColor(status: string): string {
+  return (TASK_STATUS as Record<string, { color: string }>)[status]?.color || "bg-gray-100 text-gray-700";
+}
+
+export function getTaskPriorityLabel(priority: string): string {
+  return (TASK_PRIORITY as Record<string, { label: string }>)[priority]?.label || priority;
+}
+
+export function getTaskPriorityColor(priority: string): string {
+  return (TASK_PRIORITY as Record<string, { color: string }>)[priority]?.color || "bg-gray-100 text-gray-500";
+}
+
 // ─── 費用ステータス ───
 export const BILLING_STATUS = {
   ESTIMATED: { label: "見積", color: "bg-gray-100 text-gray-700" },
