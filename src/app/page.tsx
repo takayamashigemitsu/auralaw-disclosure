@@ -41,8 +41,8 @@ const steps = [
   {
     num: "02",
     icon: FileText,
-    title: "仮処分申立",
-    desc: "裁判所にSNS運営への情報開示を求める仮処分を申し立てます。IPアドレスを取得します。",
+    title: "仮処分命令申立",
+    desc: "仮処分命令申立により、投稿の削除とIPアドレスの開示請求を行います。",
     duration: "1〜2ヶ月",
     color: "bg-indigo-600",
   },
@@ -50,7 +50,7 @@ const steps = [
     num: "03",
     icon: Search,
     title: "プロバイダへ開示請求",
-    desc: "取得したIPアドレスをもとに、通信会社（プロバイダ）に発信者の個人情報開示を請求。",
+    desc: "プロバイダに対するIPアドレス保有者の契約者情報（住所・氏名）、またはSNS運営業者に対するアカウント情報（電話番号・メールアドレス）の開示請求を行います。",
     duration: "1〜3ヶ月",
     color: "bg-violet-600",
   },
@@ -149,17 +149,17 @@ export default function HomePage() {
                 </div>
 
                 <h1 className="text-4xl font-black leading-[1.15] tracking-tight text-white md:text-5xl lg:text-6xl">
-                  ネットの<br />
-                  誹謗中傷、<br />
+                  SNSでの<br />
+                  誹謗中傷（名誉毀損）<br />
                   <span className="bg-gradient-to-r from-amber-300 to-amber-500 bg-clip-text text-transparent">
-                    泣き寝入り<br />しない。
+                    泣き寝入りしない
                   </span>
                 </h1>
 
                 <p className="mt-6 text-base text-gray-300 leading-relaxed md:text-lg">
-                  発信者情報開示請求で匿名の投稿者を特定し、<br className="hidden md:block" />
-                  法的に適切な解決へ。<br />
-                  スクリーンショット1枚から、弁護士が動きます。
+                  仮処分命令申立で投稿を削除し、<br className="hidden md:block" />
+                  発信者情報開示請求で匿名の投稿者を特定する。<br />
+                  スクリーンショット1枚から、AIが手続・費用を提示します。
                 </p>
 
                 <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 max-w-sm">
@@ -175,7 +175,7 @@ export default function HomePage() {
                     href="/contact"
                     className="group inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-8 py-4 text-base font-bold text-white shadow-lg shadow-amber-500/30 transition-all hover:bg-amber-400 active:scale-95"
                   >
-                    今すぐ無料相談する
+                    AI無料相談
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                   <Link
@@ -271,7 +271,7 @@ export default function HomePage() {
                 href="/contact"
                 className="whitespace-nowrap rounded-lg border border-white/40 bg-white/10 px-4 py-1.5 text-sm font-bold text-white hover:bg-white/20 transition-colors flex-shrink-0"
               >
-                今すぐ無料相談 →
+                AI無料相談 →
               </Link>
             </div>
           </div>
@@ -657,7 +657,7 @@ export default function HomePage() {
               <span className="text-amber-400">今すぐご相談ください。</span>
             </h2>
             <p className="mt-6 text-gray-300 max-w-xl mx-auto">
-              スクリーンショット1枚から相談できます。
+              スクリーンショット1枚から、AIが手続・費用を提示します。
               弁護士が迅速に状況を確認し、最善の対応策をご提案します。
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -669,15 +669,18 @@ export default function HomePage() {
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Link>
               <a
-                href="tel:0365555370"
+                href="tel:0365555373"
                 className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-8 py-4 text-base font-semibold text-white backdrop-blur transition-all hover:bg-white/10"
               >
                 <Phone className="h-5 w-5" />
-                03-6555-5370
+                03-6555-5373
               </a>
             </div>
             <p className="mt-6 text-sm text-gray-500">
               平日 10:00〜18:00 受付 ／ メールは24時間受付
+            </p>
+            <p className="mt-2 text-xs text-gray-600">
+              ※電話での無料相談は当分の間受け付けておりません。フォームよりお問い合わせください。
             </p>
           </div>
         </section>

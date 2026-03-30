@@ -52,7 +52,7 @@ export function PublicHeader() {
                 弁護士法人AURA
               </span>
               <span className={`text-[10px] leading-tight transition-colors ${transparent ? "text-blue-200" : "text-gray-400"}`}>
-                発信者情報開示請求
+                発信者情報開示請求サポート（法人用）
               </span>
             </div>
           </Link>
@@ -72,20 +72,17 @@ export function PublicHeader() {
             ))}
           </nav>
 
-          {/* Right: tel + CTA */}
+          {/* Right: tel */}
           <div className="hidden items-center gap-3 md:flex">
             <a
-              href="tel:0365555370"
+              href="tel:0365555373"
               className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
                 transparent ? "text-white/70 hover:text-white" : "text-gray-500 hover:text-gray-700"
               }`}
             >
               <Phone className="h-3.5 w-3.5" />
-              03-6555-5370
+              03-6555-5373
             </a>
-            <Button asChild size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-0 px-5 shadow-sm">
-              <Link href="/contact">無料相談する</Link>
-            </Button>
           </div>
 
           {/* Mobile toggle */}
@@ -132,11 +129,11 @@ export function PublicHeader() {
             </nav>
             <div className="p-4 border-t space-y-2">
               <a
-                href="tel:0365555370"
+                href="tel:0365555373"
                 className="flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <Phone className="h-4 w-4" />
-                03-6555-5370
+                03-6555-5373
               </a>
               <Button asChild className="w-full bg-amber-500 hover:bg-amber-600 text-white">
                 <Link href="/contact" onClick={() => setOpen(false)}>

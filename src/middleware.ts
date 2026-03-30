@@ -58,6 +58,17 @@ export default auth(async (req) => {
   const ip = getClientIp(req);
   const session = req.auth; // NextAuth v5: JWT から自動デコードされたセッション
 
+  // ─── サイトパスワードゲート（公開ページのみ） ───
+  const isPublicPage = pathname === "/" || pathname === "/contact" || pathname === "/contact/complete"
+    || pathname === "/fee" || pathname === "/simulator" || pathname === "/privacy" || pathname === "/terms";
+
+  if (isPublicPage) {
+    const siteAccess = req.cookies.get("site_access")?.value;
+    if (siteAccess !== "granted") {
+      return NextResponse.redirect(new URL("/gate", req.url));
+    }
+  }
+
   // ─── レート制限（認証不要エンドポイント） ───
 
   // ログイン試行
@@ -160,6 +171,13 @@ export default auth(async (req) => {
 
 export const config = {
   matcher: [
+    "/",
+    "/contact",
+    "/contact/complete",
+    "/fee",
+    "/simulator",
+    "/privacy",
+    "/terms",
     "/admin/:path*",
     "/portal/:path*",
     "/api/consultations/:path*",

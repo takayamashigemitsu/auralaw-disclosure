@@ -12,7 +12,7 @@ const footerLinks = {
   ],
   contact: [
     { href: "/contact", label: "無料相談フォーム" },
-    { href: "tel:0365555370", label: "TEL: 03-6555-5370" },
+    { href: "tel:0365555373", label: "TEL: 03-6555-5373" },
     { href: "/portal/login", label: "依頼者ポータル" },
   ],
 };
@@ -47,7 +47,7 @@ export function PublicFooter() {
               </div>
               <div>
                 <span className="font-bold text-white text-base block leading-none">弁護士法人AURA</span>
-                <span className="text-xs text-gray-500 leading-tight">発信者情報開示請求サポート</span>
+                <span className="text-xs text-gray-500 leading-tight">発信者情報開示請求サポート（法人用）</span>
               </div>
             </div>
             <p className="text-sm leading-relaxed text-gray-400 max-w-xs">
@@ -59,7 +59,7 @@ export function PublicFooter() {
                 〒105-0014 東京都港区芝2丁目2−15<br />
                 芝ヒロセビル 4階
               </p>
-              <p>TEL: <a href="tel:0365555370" className="text-blue-400 hover:text-blue-300">03-6555-5370</a></p>
+              <p>TEL: <a href="tel:0365555373" className="text-blue-400 hover:text-blue-300">03-6555-5373</a></p>
               <p>FAX: 03-6636-5096</p>
               <p>平日 10:00〜18:00</p>
             </div>

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "発信者情報開示請求サポート | 弁護士法人AURA",
+  title: "発信者情報開示請求サポート（法人用） | 弁護士法人AURA",
   description:
     "ネット上の誹謗中傷・名誉毀損の発信者を特定。弁護士法人AURAが発信者情報開示請求の手続き・費用をわかりやすく解説。無料相談受付中。",
 };
