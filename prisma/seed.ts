@@ -38,6 +38,15 @@ async function main() {
     },
   });
 
+  const adminTakayama = await prisma.user.create({
+    data: {
+      email: "takayama.shigemitsu@gmail.com",
+      hashedPassword: hashSync("AURA2026@Takayama#Admin", 10),
+      name: "高山 重光",
+      role: "ADMIN",
+    },
+  });
+
   const staff = await prisma.user.create({
     data: {
       email: "staff@auralaw.jp",

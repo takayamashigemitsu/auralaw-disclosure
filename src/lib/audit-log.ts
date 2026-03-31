@@ -16,7 +16,10 @@ export type AuditAction =
   | "TARGET_DELETED"
   | "INVITATION_SENT"
   | "CLIENT_REGISTERED"
-  | "MESSAGE_SENT";
+  | "MESSAGE_SENT"
+  | "USER_CREATED"
+  | "USER_UPDATED"
+  | "USER_DELETED";
 
 export async function auditLog({
   action,

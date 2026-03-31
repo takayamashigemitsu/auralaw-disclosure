@@ -189,5 +189,6 @@ export const config = {
     "/api/files/:path*",
     "/api/auth/:path*",
     "/api/upload/:path*",
+    "/api/users/:path*",
   ],
 };
