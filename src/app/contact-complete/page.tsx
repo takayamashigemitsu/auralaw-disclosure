@@ -5,6 +5,13 @@ import { PublicHeader } from "@/components/public-header";
 import { PublicFooter } from "@/components/public-footer";
 import { CheckCircle, Home } from "lucide-react";
 
+// Next.js 16 Turbopack + @vercel/next@4.16.5 互換性問題の回避策:
+// 以前 /contact/complete (ネスト) に置いていたが、Turbopack の新しい
+// partial prerender 出力を @vercel/next が lambda として取り込めず
+// "NEXT_MISSING_LAMBDA: Unable to find lambda for route: /contact/complete"
+// でビルド失敗するため、/contact-complete (flat) にルートを変更した。
+// @vercel/next が Next.js 16 に完全対応したら元に戻すことを検討する。
+
 export default function ContactCompletePage() {
   return (
     <>

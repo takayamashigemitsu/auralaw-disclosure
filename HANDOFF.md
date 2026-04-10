@@ -426,3 +426,102 @@ CAIO 監査で β 運用前に塞ぐべき Critical が 4 件検出された。�
 - **AiModeBanner は環境変数そのものを client に露出しない**: boolean 3 つに圧縮してから渡す。API キーの有無だけ見えて、値は見えない
 - **色分けが 4 パターンある理由**: 弁護士が「今どのモードなのか」を UI だけで即判断できるようにした。青 (推奨・バイパス) を目立たせて、黄 (採点不可) も即座に気づけるようにしている
 - **既存コードへの影響ゼロ**: `organizeConsultation` の `forceReal` は optional なので、既存の consultation API 側コードは一切変更不要
+
+## 2026-04-10 19:30 | Claude Code (Desktop) | Vercel アカウント移管 + Turbopack 互換性問題解決 (進行中)
+
+**背景:**
+A6 本物 AI 解放の準備としてローカルビルド → 手動デプロイを試みたところ、4 回連続で `deploy_failed` (空メッセージ)。原因を追跡したところ、複数の問題が重なっていた。
+
+**特定した問題 (3 つ):**
+
+1. **Vercel 自動デプロイが動いていない**
+   - Vercel project (`auralaw-disclosure`) が GitHub 連携されていない
+   - git push しても自動デプロイが走らない (7 時間前の古い deployment のまま停滞)
+   - Error: "Failed to link auralaw/auralaw-disclosure. You need to add a Login Connection to your GitHub account first."
+
+2. **Next.js 16 Turbopack × `@vercel/next@4.16.5` 互換性問題**
+   - ローカルでも `vercel build --prod` が `NEXT_MISSING_LAMBDA: Unable to find lambda for route: /contact/complete` で失敗
+   - Next.js 16 Turbopack の partial prerender 出力構造を `@vercel/next@4.16.5` が完全に解釈できない
+   - server component の静的ページ (特にネストルート) で lambda 取り込みがスキップされる
+   - 試した回避策:
+     - `export const dynamic = "force-dynamic"` → ローカルビルドは ok になったが deploy 段階で別エラー
+     - `"use client"` 化 → 同じ `NEXT_MISSING_LAMBDA` 再発
+     - **最終解: ネストルートを flat ルートに変更** (`/contact/complete` → `/contact-complete`)
+       - `src/app/contact/complete/page.tsx` 削除
+       - `src/app/contact-complete/page.tsx` 新規作成
+       - `src/middleware.ts` の isPublicPage + matcher を `/contact-complete` に更新
+       - `src/app/contact/page.tsx` の `router.push("/contact/complete")` → `router.push("/contact-complete")`
+     - この変更後、ローカルビルドは `"status": "ok"` で成功、全支援ファイル (`contact-complete.func@`, `.rsc.func@`, `.segments/`, `.prerender-config.json`, `.prerender-fallback.html/rsc`) が生成された
+   - TODO: 将来 `@vercel/next` が Next.js 16 に完全対応したら nest ルートに戻すことを検討
+
+3. **Vercel Git Author Attribution チェックで deploy block (根本原因)**
+   - Vercel REST API で deployment 詳細を直接取得して原因特定
+   - `readyStateReason`: "Git author info@auralaw.jp must have access to the team lexxtec2306-9417's projects on Vercel to create deployments."
+   - `seatBlock`: `{ blockCode: "TEAM_ACCESS_REQUIRED", isVerified: false }`
+   - 7 時間前のデプロイ (成功時) は `attribution: null, seatBlock: null` だったのに対し、現在は attribution チェックが発動
+   - → この数時間で Vercel 側で **Git Author Attribution 機能がロールアウトされた** と推定
+   - 既存 git commit author (`info@auralaw.jp`) が現 team owner (`lexxtec2306@gmail.com`) と一致しないため block
+
+**方針決定 (ユーザー判断):**
+
+ユーザーが「lexxtec2306@gmail.com は今後一切使わず、`law.corp.aura@gmail.com` で運用したい」と決定。
+- Transfer Project (ルート A) を試みたが Pro Team 必須 → Pro Trial は CC 必須なので見送り
+- **手動移管 (ルート B)** に決定: 新アカウント `law.corp.aura@gmail.com` の Hobby team (`lawcorpaura-4238s-projects`) で新規プロジェクトを作り直す
+
+**ルート B の実行方針:**
+
+- 環境変数転記: **ルート X (速い、Claude 実行)** — ローカル `.env` を shell source して `vercel env add` にパイプで順次登録。Claude の context や出力に値は出さない
+- git author: **一時 override 方式 (B2)** — `git -c user.email=law.corp.aura@gmail.com -c user.name="AURA Law" commit --allow-empty -m "..."` で config 非変更の empty commit を作成
+- Hobby プラン規約 (non-commercial use only) は承知の上で進める
+
+**必要な環境変数 (`.env` から確認済み):**
+
+```
+DATABASE_URL
+DIRECT_URL
+NEXTAUTH_SECRET
+NEXTAUTH_URL               # 本番用に https://... に書き換え必要
+RESEND_API_KEY
+EMAIL_FROM
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_APP_URL         # 本番用に書き換え必要
+ANTHROPIC_API_KEY
+```
+
+加えて、CLAUDE.md R5 規定に従う本番用追加変数:
+```
+SITE_PASSWORD              # LP ゲート用
+AI_PROVIDER_FORCE_STUB=true        # 全体は Stub 固定
+AI_RELEASE_GATE_USE_REAL=true      # リリースゲートだけ本物
+AI_DAILY_COST_LIMIT_USD=3          # 初日は絞る
+AI_SINGLE_REQUEST_LIMIT_USD=1      # or AI_REQUEST_COST_LIMIT_USD
+```
+
+**現在の状態:**
+- `vercel logout` 実行済み (`lexxtec2306@gmail.com` からログアウト完了)
+- `.vercel/` ディレクトリ削除済み (旧 project link 切断)
+- コード修正 (`/contact/complete` → `/contact-complete` flat 化) は **まだ git commit していない**
+- 旧 project (`prj_yenOC0snl7NoSYtuSUQBFlfFdRIG` / `auralaw-disclosure` under `team_Z5PRhpvAOTLiDATjzXdz3tGt`) は最終的に削除予定
+- ユーザーの `vercel login` (law.corp.aura@gmail.com でブラウザ認証) 待ち
+
+**次にやるべきこと (login 完了後):**
+1. `vercel link` で新 team `lawcorpaura-4238s-projects` に project 作成 (project 名は `auralaw-disclosure` で)
+2. ローカル `.env` から本番 env vars を `vercel env add ... production` で順次登録
+3. 本番固有の追加 env vars (`SITE_PASSWORD`, `AI_*`) を登録
+4. 修正済みコード (`/contact-complete` flat化 + sample6 maxTokens bump など) を `git -c user.email=law.corp.aura@gmail.com` 付き commit
+5. push (新 commit を remote に反映)
+6. `rm -rf .next .vercel/output && vercel build --prod && vercel deploy --prebuilt --prod`
+7. 動作確認 (`/api/auth/session` が null、`/gate` が 200)
+8. `/admin/release-gate` で sample6 を含む 6 サンプル実行 (本物 Anthropic)
+9. 6 軸採点 → PASS → 承認 → `ReleaseGateApproval` 作成
+10. 旧 project を Dashboard から削除
+
+**判断・方針メモ:**
+- **なぜ flat route 化が正解だったか**: `dynamic = "force-dynamic"` も `"use client"` も、ビルドは通るが Platform 段階で別エラーが出る。つまり Turbopack の出力構造そのものが @vercel/next と齟齬していて、nested route にだけ発症する。flat route にすれば他の正常ルートと完全に同じパターンで出力されるので確実
+- **なぜ Vercel REST API を直接叩いたか**: `vercel inspect --logs`, `vercel logs` どちらも deploy_failed の build 前エラーは取得できなかった。`%APPDATA%\com.vercel.cli\Data\auth.json` の token を使って `api.vercel.com/v13/deployments/{id}` を直叩きすれば `readyStateReason` と `seatBlock` が取れる
+- **なぜ Hobby 移管を許容したか**: Vercel Hobby の "non-commercial use only" 規約は承知の上で、CC 入力拒否というユーザー意志を優先。将来的に Pro Trial / Pro に移行するオプションは残っている (プロジェクト Transfer で再対応可能)
+- **なぜ git author を一時 override にしたか**: Claude の安全ルール "NEVER update the git config" を守るため、`git -c` で 1 回の commit にだけ適用する。永続 config 変更はユーザー判断事項
+- **旧プロジェクト削除のタイミング**: 移管後にすぐ削除するのではなく、新プロジェクトで 1 日以上安定動作してから削除する (ロールバック先として残しておく安全策)

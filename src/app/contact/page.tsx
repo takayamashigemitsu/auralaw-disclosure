@@ -252,7 +252,7 @@ export default function ContactPage() {
         return;
       }
 
-      router.push("/contact/complete");
+      router.push("/contact-complete");
     } catch {
       setErrors({
         form: "送信に失敗しました。しばらくしてから再度お試しください。",

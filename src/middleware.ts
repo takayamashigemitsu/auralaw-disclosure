@@ -59,7 +59,7 @@ export default auth(async (req) => {
   const session = req.auth; // NextAuth v5: JWT から自動デコードされたセッション
 
   // ─── サイトパスワードゲート（公開ページのみ） ───
-  const isPublicPage = pathname === "/" || pathname === "/contact" || pathname === "/contact/complete"
+  const isPublicPage = pathname === "/" || pathname === "/contact" || pathname === "/contact-complete"
     || pathname === "/fee" || pathname === "/simulator" || pathname === "/privacy" || pathname === "/terms";
 
   if (isPublicPage) {
@@ -173,7 +173,7 @@ export const config = {
   matcher: [
     "/",
     "/contact",
-    "/contact/complete",
+    "/contact-complete",
     "/fee",
     "/simulator",
     "/privacy",
