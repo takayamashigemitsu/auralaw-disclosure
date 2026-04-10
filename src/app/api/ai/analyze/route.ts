@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await analyzeScreenshots(images, context);
+    const result = await analyzeScreenshots(images, context, session.user.id);
 
     const analysis = await prisma.aIAnalysis.create({
       data: {

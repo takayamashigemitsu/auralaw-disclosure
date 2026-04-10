@@ -181,7 +181,7 @@ export default async function PortalCaseDetailPage({
               {caseData.documents.map((doc) => (
                 <a
                   key={doc.id}
-                  href={doc.fileUrl}
+                  href={`/api/case-documents/${doc.id}/download`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-blue-50"

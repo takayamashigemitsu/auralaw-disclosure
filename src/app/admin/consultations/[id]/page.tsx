@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { AIAnalysisButton } from "@/components/ai-analysis-button";
 import { ConsultationActions } from "../consultation-actions";
 import { ConsultationMemo } from "./consultation-memo";
+import { AIOrganize } from "@/components/ai-organize";
 import {
   Clock,
   Mail,
@@ -43,24 +43,12 @@ export default async function ConsultationDetailPage({
     include: {
       files: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
       case: true,
-      aiAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
 
   if (!consultation) notFound();
 
   const sc = statusConfig[consultation.status] || { label: consultation.status, variant: "outline" as const };
-  const hasImages = consultation.files.some((f) => f.mimeType.startsWith("image/"));
-
-  const latestAnalysis = consultation.aiAnalyses[0]
-    ? {
-        defamationLikelihood: consultation.aiAnalyses[0].defamationLikelihood,
-        recommendedProcedure: consultation.aiAnalyses[0].recommendedProcedure,
-        estimatedCost: consultation.aiAnalyses[0].estimatedCost,
-        keyPoints: JSON.parse(consultation.aiAnalyses[0].keyPoints),
-        isPlaceholder: consultation.aiAnalyses[0].isPlaceholder,
-      }
-    : null;
 
   return (
     <div className="space-y-6">
@@ -179,19 +167,8 @@ export default async function ConsultationDetailPage({
             </CardContent>
           </Card>
 
-          {/* AI Analysis */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">AI分析</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AIAnalysisButton
-                consultationId={consultation.id}
-                hasImages={hasImages}
-                existingResult={latestAnalysis}
-              />
-            </CardContent>
-          </Card>
+          {/* AI Organize (A6) */}
+          <AIOrganize consultationId={consultation.id} />
 
           {/* Info */}
           <Card>

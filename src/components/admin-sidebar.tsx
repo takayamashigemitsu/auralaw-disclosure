@@ -17,6 +17,7 @@ import {
   X,
   CheckSquare,
   Shield,
+  Bell,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/admin/cases", label: "案件管理", icon: Briefcase },
   { href: "/admin/documents", label: "書類管理", icon: FileText },
   { href: "/admin/clients", label: "クライアント", icon: Users },
+  { href: "/admin/notifications", label: "通知", icon: Bell },
   { href: "/admin/users", label: "ユーザー管理", icon: Shield },
 ];
 

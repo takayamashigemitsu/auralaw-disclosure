@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CaseStatusUpdate } from "./case-status-update";
 import { CaseTimelineSection } from "./case-timeline";
-import { AIAnalysisButton } from "@/components/ai-analysis-button";
+import { AIOrganize } from "@/components/ai-organize";
 import { InviteClientButton } from "@/components/invite-client-dialog";
 import { DocumentGenerator } from "@/components/document-generator";
 import {
@@ -51,16 +52,6 @@ export default async function CaseDetailPage({
     color: getCaseStatusColor(caseData.status),
   };
 
-  const hasImages = caseData.consultation?.files?.some((f) => f.mimeType.startsWith("image/")) ?? false;
-  const latestAnalysis = caseData.aiAnalyses[0]
-    ? {
-        defamationLikelihood: caseData.aiAnalyses[0].defamationLikelihood,
-        recommendedProcedure: caseData.aiAnalyses[0].recommendedProcedure,
-        estimatedCost: caseData.aiAnalyses[0].estimatedCost,
-        keyPoints: JSON.parse(caseData.aiAnalyses[0].keyPoints),
-        isPlaceholder: caseData.aiAnalyses[0].isPlaceholder,
-      }
-    : null;
   const pendingInvitation = caseData.invitations[0];
   const consultationEmail = caseData.consultation?.email;
 
@@ -147,10 +138,16 @@ export default async function CaseDetailPage({
           {/* Existing documents */}
           {caseData.documents.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">
-                  作成済み書類（{caseData.documents.length}件）
+                  書類（{caseData.documents.length}件）
                 </CardTitle>
+                <Link
+                  href={`/admin/cases/${caseData.id}/documents`}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  書類管理を開く →
+                </Link>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -169,8 +166,9 @@ export default async function CaseDetailPage({
                         )}
                       </div>
                       <a
-                        href={doc.fileUrl}
-                        download={doc.fileName}
+                        href={`/api/case-documents/${doc.id}/download`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:underline"
                       >
                         DL
@@ -287,19 +285,8 @@ export default async function CaseDetailPage({
             </Card>
           )}
 
-          {/* AI Analysis */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">AI分析</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AIAnalysisButton
-                caseId={caseData.id}
-                hasImages={hasImages}
-                existingResult={latestAnalysis}
-              />
-            </CardContent>
-          </Card>
+          {/* AI Organize (A6) */}
+          <AIOrganize caseId={caseData.id} />
         </div>
       </div>
     </div>
