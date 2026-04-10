@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireCaseAccess } from "@/lib/case-auth";
 import { notifyNewMessage } from "@/lib/notifications";
 import { auditLog } from "@/lib/audit-log";
 
@@ -8,12 +8,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-  }
-
   const { id } = await params;
+  const gate = await requireCaseAccess(id);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   let body: Record<string, unknown>;
   try {
@@ -31,19 +29,8 @@ export async function POST(
     return NextResponse.json({ error: "メッセージが長すぎます" }, { status: 400 });
   }
 
-  // 認可チェック: CLIENTは自分の案件のみ、ADMIN/STAFFは全案件
-  const role = session.user.role;
-  if (role === "CLIENT") {
-    const caseData = await prisma.case.findFirst({
-      where: { id, clientUserId: session.user.id },
-    });
-    if (!caseData) {
-      return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
-    }
-  }
-
   // isFromClientはロールから自動判定（リクエストから操作不可）
-  const isFromClient = role === "CLIENT";
+  const isFromClient = session.user.role === "CLIENT";
 
   try {
     const message = await prisma.caseMessage.create({

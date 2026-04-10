@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireCaseAccess, requireStaffCaseAccess } from "@/lib/case-auth";
 import { auditLog } from "@/lib/audit-log";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id: caseId } = await params;
+  const gate = await requireStaffCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   let body: Record<string, unknown>;
   try {
@@ -23,12 +21,6 @@ export async function POST(
 
   if (!body.snsType || typeof body.snsType !== "string") {
     return NextResponse.json({ error: "対象サイトは必須です" }, { status: 400 });
-  }
-
-  // 案件存在確認
-  const caseData = await prisma.case.findUnique({ where: { id: caseId } });
-  if (!caseData) {
-    return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
 
   try {
@@ -60,23 +52,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-  }
-
   const { id: caseId } = await params;
-
-  // CLIENT は自分の案件のみ閲覧可能
-  const role = session.user.role;
-  if (role === "CLIENT") {
-    const caseData = await prisma.case.findFirst({
-      where: { id: caseId, clientUserId: session.user.id },
-    });
-    if (!caseData) {
-      return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
-    }
-  }
+  const gate = await requireCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
 
   try {
     const targets = await prisma.caseTarget.findMany({

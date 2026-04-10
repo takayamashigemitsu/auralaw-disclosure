@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireCaseAccess, requireStaffCaseAccess } from "@/lib/case-auth";
 import { notifyStatusChange } from "@/lib/notifications";
 import { getTemplatesForStatus } from "@/lib/task-engine";
 
@@ -31,23 +31,13 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-  }
-
   const { id } = await params;
-  const role = session.user.role;
+  const gate = await requireCaseAccess(id);
+  if (!gate.ok) return gate.response;
 
   try {
-    // CLIENT は自分の案件のみ閲覧可能
-    const where =
-      role === "CLIENT"
-        ? { id, clientUserId: session.user.id }
-        : { id };
-
-    const caseData = await prisma.case.findFirst({
-      where,
+    const caseData = await prisma.case.findUnique({
+      where: { id },
       include: {
         timelines: { orderBy: { date: "asc" } },
         messages: { orderBy: { createdAt: "desc" } },
@@ -68,12 +58,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id } = await params;
+  const gate = await requireStaffCaseAccess(id);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   let body: Record<string, unknown>;
   try {
@@ -94,11 +82,7 @@ export async function PATCH(
   }
 
   try {
-    const oldCase = await prisma.case.findUnique({ where: { id } });
-    if (!oldCase) {
-      return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
-    }
-    const oldStatus = oldCase.status;
+    const oldStatus = gate.caseData.status;
     const newStatus = body.status as string | undefined;
 
     // ステータス遷移バリデーション

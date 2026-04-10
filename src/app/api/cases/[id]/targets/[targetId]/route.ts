@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireStaffCaseAccess } from "@/lib/case-auth";
 import { auditLog } from "@/lib/audit-log";
 
 const VALID_STATUSES = ["PENDING", "DISCLOSED", "IDENTIFIED", "SETTLED"];
@@ -9,12 +9,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; targetId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id: caseId, targetId } = await params;
+  const gate = await requireStaffCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   let body: Record<string, unknown>;
   try {
@@ -64,12 +62,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string; targetId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id: caseId, targetId } = await params;
+  const gate = await requireStaffCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   try {
     const target = await prisma.caseTarget.findFirst({

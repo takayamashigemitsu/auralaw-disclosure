@@ -59,6 +59,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
+    // 法務SaaS: 権限変更（降格等）を最長でも8時間で反映させる
+    maxAge: 8 * 60 * 60, // 8 hours
+    updateAge: 60 * 60, // 1 hour ごとに token を更新
   },
   trustHost: true,
 });

@@ -8,7 +8,7 @@ import { Redis } from "@upstash/redis";
  * 環境変数未設定時はレート制限をスキップ（開発環境対応）
  */
 
-const redis =
+export const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL,
@@ -34,6 +34,11 @@ export const uploadLimiter = redis
 /** 汎用API: 1分あたり30回 */
 export const apiLimiter = redis
   ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, "60 s"), prefix: "rl:api" })
+  : null;
+
+/** /api/gate パスワード試行: 10分あたり5回（総当たり防止） */
+export const gateLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "600 s"), prefix: "rl:gate" })
   : null;
 
 /**

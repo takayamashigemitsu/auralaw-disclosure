@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireCaseAccess, requireStaffCaseAccess } from "@/lib/case-auth";
 import { getFeeItem } from "@/lib/fees";
 import { auditLog } from "@/lib/audit-log";
 
@@ -8,30 +8,15 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-  }
-
   const { id: caseId } = await params;
+  const gate = await requireCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   try {
-    if (["ADMIN", "STAFF"].includes(session.user.role)) {
-      const billings = await prisma.caseBilling.findMany({
-        where: { caseId },
-        orderBy: { createdAt: "asc" },
-      });
-      return NextResponse.json(billings);
-    }
-
-    // CLIENT: only visible items for their own case
-    const caseData = await prisma.case.findUnique({ where: { id: caseId } });
-    if (!caseData || caseData.clientUserId !== session.user.id) {
-      return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-    }
-
+    const isStaff = session.user.role === "ADMIN" || session.user.role === "STAFF";
     const billings = await prisma.caseBilling.findMany({
-      where: { caseId, isVisibleToClient: true },
+      where: isStaff ? { caseId } : { caseId, isVisibleToClient: true },
       orderBy: { createdAt: "asc" },
     });
     return NextResponse.json(billings);
@@ -44,12 +29,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id: caseId } = await params;
+  const gate = await requireStaffCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   let body: Record<string, unknown>;
   try {
@@ -85,12 +68,6 @@ export async function POST(
 
   if (amount < 0) {
     return NextResponse.json({ error: "金額は0以上で入力してください" }, { status: 400 });
-  }
-
-  // 案件存在確認
-  const caseData = await prisma.case.findUnique({ where: { id: caseId } });
-  if (!caseData) {
-    return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
 
   try {

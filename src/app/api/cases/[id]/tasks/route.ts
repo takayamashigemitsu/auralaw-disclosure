@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireStaffCaseAccess } from "@/lib/case-auth";
 import { auditLog } from "@/lib/audit-log";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id: caseId } = await params;
+  const gate = await requireStaffCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
 
   try {
     const tasks = await prisma.caseTask.findMany({
@@ -32,12 +29,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user || !["ADMIN", "STAFF"].includes(session.user.role)) {
-    return NextResponse.json({ error: "権限がありません" }, { status: 403 });
-  }
-
   const { id: caseId } = await params;
+  const gate = await requireStaffCaseAccess(caseId);
+  if (!gate.ok) return gate.response;
+  const { session, caseData } = gate;
 
   let body: Record<string, unknown>;
   try {
@@ -57,12 +52,6 @@ export async function POST(
   const VALID_PRIORITIES = ["URGENT", "HIGH", "NORMAL", "LOW"];
   if (body.priority && !VALID_PRIORITIES.includes(body.priority as string)) {
     return NextResponse.json({ error: "無効な優先度です" }, { status: 400 });
-  }
-
-  // 案件存在確認
-  const caseData = await prisma.case.findUnique({ where: { id: caseId } });
-  if (!caseData) {
-    return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
 
   try {
