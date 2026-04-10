@@ -8,6 +8,14 @@
  *  - ADMIN 限定（STAFF でも不可）
  *  - cost guard が効いているため日次上限に達すると途中で失敗する
  *  - 失敗サンプルは errorMessage に残し、成功分は保存する
+ *
+ * 本物 AI バイパス:
+ *  - 環境変数 `AI_RELEASE_GATE_USE_REAL=true` が設定されている場合、
+ *    このエンドポイントだけ `AI_PROVIDER_FORCE_STUB=true` を無視して
+ *    本物の Anthropic を呼ぶ (forceReal=true を organize に渡す)
+ *  - 他のエンドポイント (/api/consultations 等) は影響を受けない
+ *  - ANTHROPIC_API_KEY 未設定の場合は getProvider() が例外を投げる
+ *  - 使用時は AppLog に audit エントリを残す
  */
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -23,6 +31,7 @@ export async function POST() {
   }
 
   const userId = session.user.id;
+  const forceReal = process.env.AI_RELEASE_GATE_USE_REAL === "true";
   const results: Array<{
     sampleKey: string;
     runId: string;
@@ -31,6 +40,23 @@ export async function POST() {
   }> = [];
 
   let costLimitHit = false;
+
+  // forceReal モードに入る前に audit ログを必ず残す (後から追跡可能に)
+  if (forceReal) {
+    await prisma.appLog.create({
+      data: {
+        level: "warn",
+        category: "ai_safety",
+        message: "release_gate: forceReal mode activated (bypassing AI_PROVIDER_FORCE_STUB)",
+        context: JSON.stringify({
+          promptVersion: ORGANIZE_PROMPT_VERSION,
+          sampleCount: RELEASE_SAMPLES.length,
+          triggeredBy: userId,
+        }),
+        userId,
+      },
+    });
+  }
 
   for (const sample of RELEASE_SAMPLES) {
     if (costLimitHit) {
@@ -55,7 +81,7 @@ export async function POST() {
 
     try {
       const content = `SNS: ${sample.snsType}\n相談内容:\n${sample.content}`;
-      const result = await organizeConsultation({ content, userId });
+      const result = await organizeConsultation({ content, userId, forceReal });
 
       // AIOrganizeResult + AISampleRun をトランザクションで保存
       const saved = await prisma.$transaction(async (tx) => {
@@ -150,5 +176,6 @@ export async function POST() {
     promptVersion: ORGANIZE_PROMPT_VERSION,
     results,
     costLimitHit,
+    forceReal,
   });
 }

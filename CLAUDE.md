@@ -76,6 +76,39 @@ AI_REQUEST_COST_LIMIT_USD=1    # 1リクエストあたり
 **Claude はこれらの環境変数を絶対に変更しない**。設計上、本番 AI の解放は
 人間の手動操作でのみ行われる。Claude が自動化してはいけない。
 
+## リリースゲート専用バイパス (推奨経路)
+
+リリースゲートで本物 AI を採点するために `AI_PROVIDER_FORCE_STUB=false` を
+全体設定してしまうと、採点が終わる前に `/consultations` 等のエンドポイントでも
+本物 AI が叩けてしまう。これを避けるため、専用バイパスフラグを用意している:
+
+```
+AI_PROVIDER_FORCE_STUB=true           # 全体は Stub のまま
+AI_RELEASE_GATE_USE_REAL=true         # リリースゲートだけ本物
+ANTHROPIC_API_KEY=sk-ant-...          # 本物呼び出しに必須
+AI_DAILY_COST_LIMIT_USD=3
+AI_REQUEST_COST_LIMIT_USD=1
+```
+
+この設定で `/api/admin/release-gate/run` のみが本物の Anthropic を呼び、
+他のエンドポイントは引き続き Stub 応答を返す。cost guard は通常通り適用される。
+
+`AI_RELEASE_GATE_USE_REAL=true` が有効な状態でリリースゲートを実行すると、
+`AppLog` に `category="ai_safety" / message="release_gate: forceReal mode activated"`
+の audit エントリが自動記録される。
+
+## 解放の二段階
+
+1. **ゲート採点フェーズ**: `AI_PROVIDER_FORCE_STUB=true` + `AI_RELEASE_GATE_USE_REAL=true`
+   - 本物 AI は release-gate だけ
+   - 何度でもプロンプト改訂 → 再実行 → 採点のループが可能
+   - `/consultations` は Stub のままなので顧客向けに事故が出ない
+
+2. **並行運用フェーズ**: ゲート承認後に `AI_PROVIDER_FORCE_STUB=false`
+   - このタイミングで初めて `/consultations` 等で本物 AI が動く
+   - `AI_RELEASE_GATE_USE_REAL` はもう不要だが、残しても害はない
+   - R5 並行運用ルールに従って 1 週間監視
+
 ## 評価観点 (並行運用 1 週間)
 
 | 観点 | 合格条件 |

@@ -82,6 +82,12 @@ type RecentApproval = {
   notes: string | null;
 };
 
+type AiMode = {
+  forceStub: boolean;
+  releaseGateUseReal: boolean;
+  hasApiKey: boolean;
+};
+
 const AXES = [
   { key: "scoreFactAccuracy", label: "事実正確性", short: "事実" },
   { key: "scoreCompressionRate", label: "圧縮率", short: "圧縮" },
@@ -97,11 +103,13 @@ export function ReleaseGateClient({
   rows,
   evaluation,
   currentPromptVersion,
+  aiMode,
   recentApprovals,
 }: {
   rows: SampleRow[];
   evaluation: GateEvaluation;
   currentPromptVersion: string;
+  aiMode: AiMode;
   recentApprovals: RecentApproval[];
 }) {
   const router = useRouter();
@@ -156,6 +164,8 @@ export function ReleaseGateClient({
         </Button>
       </div>
 
+      <AiModeBanner aiMode={aiMode} />
+
       <GateStatusCard
         evaluation={evaluation}
         currentPromptVersion={currentPromptVersion}
@@ -174,6 +184,100 @@ export function ReleaseGateClient({
 
       <RecentApprovalsSection approvals={recentApprovals} />
     </div>
+  );
+}
+
+// ==================================================================
+// AI モード表示バナー (Stub / 本物 / 混在 を視覚化)
+// ==================================================================
+
+function AiModeBanner({ aiMode }: { aiMode: AiMode }) {
+  const { forceStub, releaseGateUseReal, hasApiKey } = aiMode;
+
+  // 実効モード判定:
+  //  - forceStub=true + releaseGateUseReal=true + hasApiKey=true → bypass (ゲートのみ本物)
+  //  - forceStub=false + hasApiKey=true → 本番AI解放済み (全体で本物)
+  //  - hasApiKey=false → 強制Stub (何もできない)
+  //  - それ以外 → Stub モード
+
+  if (!hasApiKey) {
+    return (
+      <Card className="border-gray-300 bg-gray-50">
+        <CardContent className="flex items-center gap-3 pt-6">
+          <AlertCircle className="h-5 w-5 shrink-0 text-gray-500" />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-gray-700">
+              Stub モード (ANTHROPIC_API_KEY 未設定)
+            </p>
+            <p className="text-xs text-gray-500">
+              実際の AI 整理は実行されません。Vercel 環境変数{" "}
+              <span className="font-mono">ANTHROPIC_API_KEY</span> を設定してください。
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (forceStub && releaseGateUseReal) {
+    return (
+      <Card className="border-blue-300 bg-blue-50">
+        <CardContent className="flex items-center gap-3 pt-6">
+          <ShieldCheck className="h-5 w-5 shrink-0 text-blue-700" />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-blue-900">
+              リリースゲート専用バイパスモード (推奨)
+            </p>
+            <p className="text-xs text-blue-800">
+              全体は Stub のまま、**このエンドポイントだけ** 本物の Anthropic を呼びます。
+              /consultations 等の本番エンドポイントは引き続き Stub です。
+              cost guard は通常通り適用されます。
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (forceStub && !releaseGateUseReal) {
+    return (
+      <Card className="border-yellow-300 bg-yellow-50">
+        <CardContent className="flex items-center gap-3 pt-6">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-700" />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-yellow-900">
+              全体 Stub モード — ゲート実行しても採点不可
+            </p>
+            <p className="text-xs text-yellow-800">
+              現在 <span className="font-mono">AI_PROVIDER_FORCE_STUB=true</span>{" "}
+              のため、全サンプル実行を押しても stub プレースホルダーが返ります。
+              <br />
+              ゲート採点するには Vercel 環境変数に{" "}
+              <span className="font-mono">AI_RELEASE_GATE_USE_REAL=true</span>{" "}
+              を追加して Redeploy してください。
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // forceStub=false → 本番 AI 完全解放中
+  return (
+    <Card className="border-green-300 bg-green-50">
+      <CardContent className="flex items-center gap-3 pt-6">
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-green-700" />
+        <div className="flex-1 text-sm">
+          <p className="font-semibold text-green-900">
+            本番 AI 解放中 (AI_PROVIDER_FORCE_STUB=false)
+          </p>
+          <p className="text-xs text-green-800">
+            全エンドポイントで本物の Anthropic が呼ばれます。
+            並行運用期間中は CLAUDE.md の R5 ルールに従ってください。
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

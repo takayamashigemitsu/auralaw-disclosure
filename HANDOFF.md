@@ -357,3 +357,72 @@ CAIO 監査で β 運用前に塞ぐべき Critical が 4 件検出された。�
 - **第6サンプル追加は prompt version bump なし**: サンプルを増やしただけでプロンプト自体は変わっていないので `organize-v2` のまま。ただし評価フレームワークが変わったので全 6 件を新規実行する必要はある
 - **承認履歴は空のまま push した**: 弁護士が UI で承認ボタンを押すまで `ReleaseGateApproval` レコードは作られない。これは意図的な設計 (自動承認を防ぐ)
 - **Claude と Vercel 環境変数の境界を CLAUDE.md に明記**: 「Claude が自動化してはいけない」を設計上の安全ラインとして文書化。将来のセッションで別の Claude が勝手に env var を変更しないようにするため
+
+## 2026-04-10 17:00 | Desktop Claude | A6 リリースゲート専用バイパス (AI_RELEASE_GATE_USE_REAL)
+
+**やったこと:**
+- 弁護士が UI から全サンプル実行 → Stub 応答が返って採点不可、という状況を解決
+- 設計上のジレンマを 2 段階解放で解決:
+  - フェーズ1 (採点): 全体 Stub + リリースゲートだけ本物
+  - フェーズ2 (並行運用): 全体本物
+
+  **実装**:
+  - `src/lib/ai/index.ts`:
+    - `CallAIOptions { forceReal?: boolean }` 型追加
+    - `getProvider(options?)`: `forceReal=true` のときは `AI_PROVIDER_FORCE_STUB` を無視
+    - `forceReal=true` でも `ANTHROPIC_API_KEY` 未設定なら **例外を投げる** (Stub フォールバックしない = 明示的な契約)
+    - `callAI(req, options?)` に options を追加、`getProvider(options)` に forwarding
+  - `src/lib/ai/organize.ts`:
+    - `organizeConsultation` に `forceReal?: boolean` 追加
+    - `callAI` に第二引数として forwarding
+  - `src/app/api/admin/release-gate/run/route.ts`:
+    - `const forceReal = process.env.AI_RELEASE_GATE_USE_REAL === "true"`
+    - forceReal 有効時はループ前に **AppLog に必ず audit エントリを残す** (`level=warn, category=ai_safety, message="release_gate: forceReal mode activated"`)
+    - 各 sample 呼び出しで `organizeConsultation({ ..., forceReal })`
+    - レスポンスに `forceReal: boolean` 追加
+  - `src/app/admin/release-gate/page.tsx`:
+    - サーバ側で `aiMode = { forceStub, releaseGateUseReal, hasApiKey }` を判定
+    - client に prop として渡す (env 値は一切 client に漏れない、boolean のみ)
+  - `src/app/admin/release-gate/release-gate-client.tsx`:
+    - `<AiModeBanner>` コンポーネント新設
+    - 4 パターンを色分けで表示:
+      - `hasApiKey=false`: 灰 (Stub モード / key 未設定)
+      - `forceStub=true` + `releaseGateUseReal=true`: 青 (バイパスモード・推奨)
+      - `forceStub=true` + `releaseGateUseReal=false`: 黄 (採点不可警告)
+      - `forceStub=false`: 緑 (本番解放中)
+    - 採点不可パターンでは環境変数の設定手順を直接表示
+
+**CLAUDE.md 追記:**
+- 「リリースゲート専用バイパス (推奨経路)」セクション追加
+- 「解放の二段階」を明文化 (ゲート採点フェーズ → 並行運用フェーズ)
+- 環境変数の組み合わせ例を記載
+
+**現在の状態:**
+- `npx tsc --noEmit` ✅
+- `git push origin main` ✅ (Vercel 自動デプロイ済)
+- `/admin/release-gate` に AI モードバナーが表示されるようになった
+- まだ本物 AI は動いていない (環境変数未設定のため) = Stub モード
+
+**次にやるべきこと:**
+1. **プロジェクトオーナー (人間) が Vercel 環境変数を設定**:
+   ```
+   ANTHROPIC_API_KEY=sk-ant-...
+   AI_RELEASE_GATE_USE_REAL=true
+   AI_DAILY_COST_LIMIT_USD=3
+   AI_REQUEST_COST_LIMIT_USD=1
+   ```
+   `AI_PROVIDER_FORCE_STUB=true` は**そのまま**にしておく (バイパスが効く)
+2. Vercel で Redeploy
+3. `/admin/release-gate` にアクセス → 青色の「リリースゲート専用バイパスモード」バナー表示を確認
+4. 「全サンプル実行」→ 6 サンプル分の **本物** Anthropic 応答が返る
+5. 6 軸で採点 → PASS 判定 → 承認ボタン → `ReleaseGateApproval` スナップショット
+6. その後、並行運用フェーズへ (`AI_PROVIDER_FORCE_STUB=false` を設定)
+
+**判断・方針メモ:**
+- **なぜ forceReal を request type ではなく options に入れたか**: `AIRequest` は「呼び出し内容」を表す型で、`forceReal` は「呼び出し経路の制御」という別レイヤ。options にすることで request の凍結可能性を保ち、監査ログでも「誰が forceReal を使ったか」が経路ベースで追える
+- **forceReal + API_KEY 未設定 = throw にした理由**: Stub にフォールバックすると、ADMIN が「本物動いてる」と誤認するリスクがある。**明示的に失敗**して原因を即座に通知する方が安全
+- **cost guard は通常通り適用**: forceReal でも `callAI` の中で `reserveDailyCost` が動く。`AI_DAILY_COST_LIMIT_USD=3` を設定していれば、採点イテレーションで暴走することはない
+- **audit log を run route 側で作った理由**: `callAI` に入れると全呼び出しで毎回判定してログ書き込みになる。run route は 1 回のゲート実行で 1 エントリだけで十分 (6 サンプル分まとめて)
+- **AiModeBanner は環境変数そのものを client に露出しない**: boolean 3 つに圧縮してから渡す。API キーの有無だけ見えて、値は見えない
+- **色分けが 4 パターンある理由**: 弁護士が「今どのモードなのか」を UI だけで即判断できるようにした。青 (推奨・バイパス) を目立たせて、黄 (採点不可) も即座に気づけるようにしている
+- **既存コードへの影響ゼロ**: `organizeConsultation` の `forceReal` は optional なので、既存の consultation API 側コードは一切変更不要

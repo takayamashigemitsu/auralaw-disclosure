@@ -347,23 +347,31 @@ function sanitizeTimeline(arr: unknown): { cleaned: TimelineEntry[]; hit: boolea
 /**
  * 相談内容を AI で整理する。
  * PII は仮名化してから送信、戻り値で unmask する。
+ *
+ * forceReal オプション:
+ *   A6 リリースゲートなど「システム全体は Stub のままゲートだけ本物 AI を
+ *   叩きたい」用途で使用。呼び出し元は ADMIN 権限を必ず確認すること。
  */
 export async function organizeConsultation(params: {
   content: string;
   userId: string;
+  forceReal?: boolean;
 }): Promise<OrganizeResult> {
-  const { content, userId } = params;
+  const { content, userId, forceReal } = params;
 
   // PII 仮名化
   const { masked, mapping } = maskPII(content);
 
-  const res = await callAI({
-    purpose: "organize_consultation",
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: USER_PROMPT_TEMPLATE(masked) }],
-    maxTokens: 1500,
-    userId,
-  });
+  const res = await callAI(
+    {
+      purpose: "organize_consultation",
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: USER_PROMPT_TEMPLATE(masked) }],
+      maxTokens: 1500,
+      userId,
+    },
+    { forceReal }
+  );
 
   if (res.isStub) {
     return stubResult(res.text);

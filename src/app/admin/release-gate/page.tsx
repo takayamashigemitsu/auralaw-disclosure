@@ -73,6 +73,13 @@ export default async function ReleaseGatePage() {
     },
   });
 
+  // AI モード状態 (サーバ側でのみ判定、client には boolean で渡す)
+  const aiMode = {
+    forceStub: process.env.AI_PROVIDER_FORCE_STUB === "true",
+    releaseGateUseReal: process.env.AI_RELEASE_GATE_USE_REAL === "true",
+    hasApiKey: !!process.env.ANTHROPIC_API_KEY,
+  };
+
   // Client 用シリアライズ
   const sampleRows = RELEASE_SAMPLES.map((sample) => {
     const run = latestByKey.get(sample.key);
@@ -130,6 +137,7 @@ export default async function ReleaseGatePage() {
       rows={sampleRows}
       evaluation={evaluation}
       currentPromptVersion={ORGANIZE_PROMPT_VERSION}
+      aiMode={aiMode}
       recentApprovals={recentApprovals.map((a) => ({
         id: a.id,
         createdAt: a.createdAt.toISOString(),
