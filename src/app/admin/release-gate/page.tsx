@@ -1,7 +1,7 @@
 /**
  * /admin/release-gate
  *
- * A6 リリースゲート: 5 サンプル実行 + 6 軸採点のダッシュボード。
+ * A6 リリースゲート: 6 サンプル実行 + 6 軸採点のダッシュボード。
  * ADMIN 限定。各サンプルの最新実行 + 採点状態を一覧表示し、
  * gate 判定（pass / fail / incomplete）を出す。PASS 時は承認ボタンで
  * ReleaseGateApproval スナップショットを作成可能。

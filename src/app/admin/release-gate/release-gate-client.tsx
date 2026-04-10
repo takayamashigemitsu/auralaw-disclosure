@@ -137,7 +137,7 @@ export function ReleaseGateClient({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">A6 リリースゲート</h1>
           <p className="mt-1 text-sm text-gray-500">
-            5 サンプルを AI 整理に通し、6 軸（事実正確性・圧縮率・禁止ワード遵守・不足情報指摘・構造整合・実務優先順位）で採点します。
+            {rows.length} サンプルを AI 整理に通し、6 軸（事実正確性・圧縮率・禁止ワード遵守・不足情報指摘・構造整合・実務優先順位）で採点します。
             <br />
             現在の prompt version:{" "}
             <span className="font-mono text-gray-700">{currentPromptVersion}</span>

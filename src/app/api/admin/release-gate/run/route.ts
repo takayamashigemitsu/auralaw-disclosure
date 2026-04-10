@@ -1,7 +1,7 @@
 /**
  * POST /api/admin/release-gate/run
  *
- * A6 リリースゲート: 5 サンプル全件に対して organizeConsultation を
+ * A6 リリースゲート: 全サンプルに対して organizeConsultation を
  * 実行し、AISampleRun + AIOrganizeResult を作成する。
  *
  * 注意:
