@@ -59,11 +59,21 @@ export const SNS_OPTIONS = Object.entries(SNS_LABELS).map(([value, label]) => ({
 
 // ─── 書類タイプ ───
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  CREATED: "作成",
-  COURT: "裁判所",
-  OPPONENT: "相手方",
+  CREATED: "作成書類",
+  COURT: "裁判所書類",
+  OPPONENT: "相手方書類",
+  CLIENT_UPLOAD: "クライアント提出",
   UPLOADED: "アップロード",
+  OTHER: "その他",
 };
+
+export const DOCUMENT_TYPE_OPTIONS = [
+  { value: "CREATED", label: "作成書類" },
+  { value: "COURT", label: "裁判所書類" },
+  { value: "OPPONENT", label: "相手方書類" },
+  { value: "CLIENT_UPLOAD", label: "クライアント提出" },
+  { value: "OTHER", label: "その他" },
+];
 
 // ─── 書類カテゴリ ───
 export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {

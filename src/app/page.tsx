@@ -34,8 +34,8 @@ const steps = [
     num: "01",
     icon: MessageSquare,
     title: "無料相談・受任",
-    desc: "スクリーンショットを送るだけ。弁護士が被害状況を確認し、最適な方針を提案します。",
-    duration: "最短当日",
+    desc: "スクリーンショットを送るだけ。AIが相談内容を整理し、弁護士が方針をご提案します。",
+    duration: "平日24h以内",
     color: "bg-blue-600",
   },
   {
@@ -159,7 +159,7 @@ export default function HomePage() {
                 <p className="mt-6 text-base text-gray-300 leading-relaxed md:text-lg">
                   仮処分命令申立で投稿を削除し、<br className="hidden md:block" />
                   発信者情報開示請求で匿名の投稿者を特定する。<br />
-                  スクリーンショット1枚から、AIが手続・費用を提示します。
+                  AIが即座に相談内容を整理し、弁護士が最短24時間以内（平日）にご提案します。
                 </p>
 
                 <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 max-w-sm">
@@ -657,8 +657,8 @@ export default function HomePage() {
               <span className="text-amber-400">今すぐご相談ください。</span>
             </h2>
             <p className="mt-6 text-gray-300 max-w-xl mx-auto">
-              スクリーンショット1枚から、AIが手続・費用を提示します。
-              弁護士が迅速に状況を確認し、最善の対応策をご提案します。
+              スクリーンショットを送るだけ。AIが即座に相談内容を整理し、
+              弁護士が最短24時間以内（平日／休日は翌営業日）に対応策をご提案します。
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
@@ -677,7 +677,10 @@ export default function HomePage() {
               </a>
             </div>
             <p className="mt-6 text-sm text-gray-500">
-              平日 10:00〜18:00 受付 ／ メールは24時間受付
+              平日 10:00〜18:00 受付 ／ フォームは24時間受付
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              返信: 平日24時間以内／休日は翌営業日
             </p>
             <p className="mt-2 text-xs text-gray-600">
               ※電話での無料相談は当分の間受け付けておりません。フォームよりお問い合わせください。

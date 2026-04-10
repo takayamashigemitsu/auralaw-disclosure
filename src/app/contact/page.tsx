@@ -92,6 +92,10 @@ export default function ContactPage() {
   const [snsType, setSnsType] = useState("");
   const [content, setContent] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  // ─── 同意チェックボックス（A案・法務安全優先） ───
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [consentAI, setConsentAI] = useState(false);
+  const [consentTerms, setConsentTerms] = useState(false);
 
   // Mark a field as touched (on blur)
   const handleBlur = useCallback(
@@ -138,9 +142,12 @@ export default function ContactPage() {
       EMAIL_REGEX.test(email) &&
       !!snsType &&
       content.trim().length >= 10 &&
-      content.length <= CONTENT_MAX
+      content.length <= CONTENT_MAX &&
+      consentPrivacy &&
+      consentAI &&
+      consentTerms
     );
-  }, [name, email, snsType, content]);
+  }, [name, email, snsType, content, consentPrivacy, consentAI, consentTerms]);
 
   // Validate all fields and return true if valid
   function validateAll(): boolean {
@@ -192,6 +199,9 @@ export default function ContactPage() {
         mimeType,
         data,
       })),
+      consentPrivacy,
+      consentTerms,
+      consentAI,
       website: websiteVal,
       company: companyVal,
     };
@@ -268,9 +278,9 @@ export default function ContactPage() {
               無料相談フォーム
             </h1>
             <p className="mt-2 text-gray-600">
-              スクリーンショットを送るだけでOK。
+              スクリーンショットを送るだけでOK。AIが相談内容を整理し、
               <br />
-              弁護士が被害状況を確認し、最適な対応をご提案します。
+              弁護士が最短24時間以内（平日／休日は翌営業日）にご提案します。
             </p>
           </div>
 
@@ -473,6 +483,56 @@ export default function ContactPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* ─── 同意チェックボックス（A案・法務安全優先） ─── */}
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                  <p className="text-xs font-semibold text-gray-700">
+                    送信前に、以下の項目をご確認の上、同意してください。
+                  </p>
+                  <label className="flex items-start gap-2.5 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={consentPrivacy}
+                      onChange={(e) => setConsentPrivacy(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      required
+                    />
+                    <span>
+                      個人情報の取扱いについて、
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                        個人情報保護方針
+                      </a>
+                      に同意します
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2.5 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={consentAI}
+                      onChange={(e) => setConsentAI(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      required
+                    />
+                    <span>
+                      本相談内容の整理・要約のため、生成AI（Anthropic社Claude等）による処理が行われることに同意します
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2.5 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={consentTerms}
+                      onChange={(e) => setConsentTerms(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      required
+                    />
+                    <span>
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                        利用規約
+                      </a>
+                      に同意します
+                    </span>
+                  </label>
                 </div>
 
                 {errors.form && (

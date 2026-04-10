@@ -261,10 +261,13 @@ export default function SimulatorPage() {
                     </div>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500">
-                  ※上記は概算です。実際の費用は案件の難易度・内容により異なります。
-                  正確な見積もりは無料相談にてお伝えします。
-                </p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs leading-relaxed text-amber-800">
+                    <span className="font-bold">※ 本結果は参考値です。</span>
+                    実際の費用は案件の難易度・投稿数・対応プラットフォーム等により変動します。
+                    正確な見積もり・法的判断は必ず弁護士との無料相談にてお伝えします。
+                  </p>
+                </div>
                 <Button asChild className="w-full">
                   <Link href="/contact">
                     この内容で無料相談する

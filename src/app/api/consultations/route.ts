@@ -16,7 +16,17 @@ const consultationSchema = z.object({
   snsType: z.string().min(1, "SNSを選択してください"),
   content: z.string().min(10, "相談内容を10文字以上で入力してください"),
   files: z.array(fileSchema).optional(),
+  // ─── 同意（個人情報保護方針・利用規約・AI利用） ───
+  consentPrivacy: z
+    .literal(true, { message: "個人情報保護方針への同意が必要です" }),
+  consentTerms: z
+    .literal(true, { message: "利用規約への同意が必要です" }),
+  consentAI: z
+    .literal(true, { message: "生成AIによる処理への同意が必要です" }),
 });
+
+// 同意バージョン。プライバシーポリシー・利用規約改定時に更新すること。
+const CONSENT_VERSION = "2026-04-10";
 
 export async function POST(request: Request) {
   try {
@@ -38,6 +48,11 @@ export async function POST(request: Request) {
         snsType: data.snsType,
         content: data.content,
         status: "NEW",
+        consentedAt: new Date(),
+        consentVersion: CONSENT_VERSION,
+        consentPrivacy: data.consentPrivacy,
+        consentTerms: data.consentTerms,
+        consentAI: data.consentAI,
         files: data.files?.length
           ? {
               create: data.files.map((f) => ({

@@ -20,40 +20,48 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  cases         Case[]
-  caseMessages  CaseMessage[]
-  caseDocuments CaseDocument[]
-  notifications Notification[]
-  aiAnalyses    AIAnalysis[]
-  assignedTasks CaseTask[]     @relation("TaskAssignee")
-  taskComments  TaskComment[]  @relation("TaskCommentAuthor")
+  cases             Case[]
+  caseMessages      CaseMessage[]
+  caseDocuments     CaseDocument[]
+  notifications     Notification[]
+  aiAnalyses        AIAnalysis[]
+  aiOrganizeResults AIOrganizeResult[]
+  assignedTasks     CaseTask[]         @relation("TaskAssignee")
+  taskComments      TaskComment[]      @relation("TaskCommentAuthor")
 }
 
 model Consultation {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  phone     String?
-  snsType   String
-  content   String
-  status    String   @default("NEW")
-  memo      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String    @id @default(cuid())
+  name           String
+  email          String
+  phone          String?
+  snsType        String
+  content        String
+  status         String    @default("NEW")
+  memo           String?
+  // ─── 同意記録（個人情報保護法・利用規約・AI利用） ───
+  consentedAt    DateTime?
+  consentVersion String?
+  consentPrivacy Boolean   @default(false)
+  consentTerms   Boolean   @default(false)
+  consentAI      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  files      ConsultationFile[]
-  aiAnalyses AIAnalysis[]
+  files             ConsultationFile[]
+  aiAnalyses        AIAnalysis[]
+  aiOrganizeResults AIOrganizeResult[]
 
   case Case? @relation
 }
 
 model ConsultationFile {
-  id             String       @id @default(cuid())
-  fileName       String
-  fileSize       Int
-  mimeType       String
-  data           String       // base64 encoded
-  createdAt      DateTime     @default(now())
+  id        String   @id @default(cuid())
+  fileName  String
+  fileSize  Int
+  mimeType  String
+  data      String // base64 encoded
+  createdAt DateTime @default(now())
 
   consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   consultationId String
@@ -62,14 +70,14 @@ model ConsultationFile {
 }
 
 model Case {
-  id             String   @id @default(cuid())
-  clientName     String
-  snsType        String
-  status         String   @default("ACCEPTED")
-  description    String?
-  portalToken    String   @unique @default(cuid())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id          String   @id @default(cuid())
+  clientName  String
+  snsType     String
+  status      String   @default("ACCEPTED")
+  description String?
+  portalToken String   @unique @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   consultation   Consultation? @relation(fields: [consultationId], references: [id])
   consultationId String?       @unique
@@ -77,22 +85,23 @@ model Case {
   clientUser   User?   @relation(fields: [clientUserId], references: [id], onDelete: SetNull)
   clientUserId String?
 
-  targets     CaseTarget[]
-  timelines   CaseTimeline[]
-  messages    CaseMessage[]
-  documents   CaseDocument[]
-  aiAnalyses  AIAnalysis[]
-  invitations ClientInvitation[]
-  billings    CaseBilling[]
-  tasks       CaseTask[]
+  targets           CaseTarget[]
+  timelines         CaseTimeline[]
+  messages          CaseMessage[]
+  documents         CaseDocument[]
+  aiAnalyses        AIAnalysis[]
+  aiOrganizeResults AIOrganizeResult[]
+  invitations       ClientInvitation[]
+  billings          CaseBilling[]
+  tasks             CaseTask[]
 }
 
 model CaseTarget {
   id          String   @id @default(cuid())
-  snsType     String   // X, INSTAGRAM, FIVECH, etc.
-  url         String?  // 対象投稿URL
-  postContent String?  // 投稿内容の概要
-  defendant   String?  // 被告名（判明している場合）
+  snsType     String // X, INSTAGRAM, FIVECH, etc.
+  url         String? // 対象投稿URL
+  postContent String? // 投稿内容の概要
+  defendant   String? // 被告名（判明している場合）
   status      String   @default("PENDING") // PENDING, DISCLOSED, IDENTIFIED, SETTLED
   note        String?
   createdAt   DateTime @default(now())
@@ -154,7 +163,7 @@ model CaseDocument {
 
 model Notification {
   id        String   @id @default(cuid())
-  type      String   // STATUS_CHANGE, NEW_MESSAGE, DOCUMENT_SHARED, INVITATION
+  type      String // STATUS_CHANGE, NEW_MESSAGE, DOCUMENT_SHARED, INVITATION
   title     String
   body      String
   isRead    Boolean  @default(false)
@@ -164,18 +173,33 @@ model Notification {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
-  @@index([userId, isRead])
+  @@index([userId, isRead, createdAt])
 }
 
-model AIAnalysis {
-  id                    String   @id @default(cuid())
-  defamationLikelihood  String   // HIGH, MEDIUM, LOW
-  recommendedProcedure  String
-  estimatedCost         String
-  keyPoints             String   // JSON array
-  rawResponse           String?
-  isPlaceholder         Boolean  @default(false)
-  createdAt             DateTime @default(now())
+/// CAIO方針: 「AIで判断するな、AIで圧縮しろ」
+/// AI整理結果（summary / facts / timeline / risk flags 等）を永続化する。
+/// AIAnalysis（法的判断付き）は段階的に廃止する。
+model AIOrganizeResult {
+  id                 String   @id @default(cuid())
+  /// プロンプトバージョン（差分比較用）例: "organize-v1"
+  promptVersion      String
+  /// 3行以内の要約
+  summary            String
+  /// string[]（最大7）
+  facts              String // JSON
+  /// { role, name?, handle? }[]
+  parties            String // JSON
+  /// { when, what, gap? }[]
+  timeline           String // JSON
+  /// string[]
+  suggestedQuestions String // JSON
+  /// RiskFlag[]（type enum + detail）
+  riskFlags          String // JSON
+  /// 不足情報 string[]
+  missingInfo        String // JSON
+  /// 生の応答（監査用）
+  rawResponse        String
+  createdAt          DateTime @default(now())
 
   consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   consultationId String?
@@ -183,7 +207,31 @@ model AIAnalysis {
   case   Case?   @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId String?
 
-  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdByUser User   @relation(fields: [createdBy], references: [id])
+  createdBy     String
+
+  @@index([consultationId, createdAt])
+  @@index([caseId, createdAt])
+  @@index([createdBy, createdAt])
+}
+
+model AIAnalysis {
+  id                   String   @id @default(cuid())
+  defamationLikelihood String // HIGH, MEDIUM, LOW
+  recommendedProcedure String
+  estimatedCost        String
+  keyPoints            String // JSON array
+  rawResponse          String?
+  isPlaceholder        Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consultationId String?
+
+  case   Case?   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String?
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId String?
 
   @@index([caseId])
@@ -203,31 +251,31 @@ model ClientInvitation {
 }
 
 model CaseTask {
-  id           String    @id @default(cuid())
-  templateKey  String?   // タスクテンプレートのキー（自動生成時）
-  title        String
-  description  String?
-  category     String    @default("AUTO") // AUTO, MANUAL
-  priority     String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
-  status       String    @default("PENDING") // PENDING, IN_PROGRESS, DONE, SKIPPED
-  caseStatus   String    // どのステータスで生成されたか
-  dueDate      DateTime
-  sortOrder    Int       @default(0)
-  completedAt  DateTime?
-  completedBy  String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  templateKey String? // タスクテンプレートのキー（自動生成時）
+  title       String
+  description String?
+  category    String    @default("AUTO") // AUTO, MANUAL
+  priority    String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  status      String    @default("PENDING") // PENDING, IN_PROGRESS, DONE, SKIPPED
+  caseStatus  String // どのステータスで生成されたか
+  dueDate     DateTime
+  sortOrder   Int       @default(0)
+  completedAt DateTime?
+  completedBy String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  case       Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  case       Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId     String
-  assignee   User?  @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee   User?         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   assigneeId String?
   comments   TaskComment[]
 
+  @@unique([caseId, templateKey, caseStatus])
   @@index([caseId, status])
   @@index([assigneeId, status, dueDate])
   @@index([dueDate, status])
-  @@unique([caseId, templateKey, caseStatus])
 }
 
 model TaskComment {
@@ -244,15 +292,15 @@ model TaskComment {
 }
 
 model CaseBilling {
-  id                 String   @id @default(cuid())
-  feeId              String   // fees.ts の FeeItem.id または "custom"
-  label              String   // 表示名（作成時にスナップショット）
-  amount             Int      // 金額（円）（作成時にスナップショット）
-  status             String   @default("ESTIMATED") // ESTIMATED, CONFIRMED, INVOICED, PAID
-  note               String?
-  isVisibleToClient  Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default(cuid())
+  feeId             String // fees.ts の FeeItem.id または "custom"
+  label             String // 表示名（作成時にスナップショット）
+  amount            Int // 金額（円）（作成時にスナップショット）
+  status            String   @default("ESTIMATED") // ESTIMATED, CONFIRMED, INVOICED, PAID
+  note              String?
+  isVisibleToClient Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
   caseId String
@@ -265,7 +313,7 @@ model DocumentTemplate {
   name        String
   category    String
   description String?
-  fields      String   // JSON: [{key, label, type, defaultValue?}]
+  fields      String // JSON: [{key, label, type, defaultValue?}]
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -274,14 +322,14 @@ model DocumentTemplate {
 // ─── 構造化ログ ───
 model AppLog {
   id        String   @id @default(cuid())
-  level     String   // info, warn, error
-  category  String   // auth, db, api, ui, business
+  level     String // info, warn, error
+  category  String // auth, db, api, ui, business
   message   String
-  context   String?  // JSON: エラー詳細、リクエスト情報等
+  context   String? // JSON: エラー詳細、リクエスト情報等
   userId    String?
   path      String?
   userAgent String?
-  duration  Int?     // ms
+  duration  Int? // ms
   createdAt DateTime @default(now())
 
   @@index([level, createdAt])
