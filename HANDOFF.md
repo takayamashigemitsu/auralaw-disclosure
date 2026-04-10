@@ -232,3 +232,68 @@ CAIO 監査で β 運用前に塞ぐべき Critical が 4 件検出された。�
 - `neutralizeBoundaryMarkers` は split/join ベース（RegExp より高速、エスケープ不要）
 - `safeParseArray` は idempotent ヒット時の JSON 復元ヘルパー
 - db push は nullable なので既存行はすべて NULL、unique 制約は NULL 同士で衝突しない（Postgres 仕様）
+
+## 2026-04-10 16:00 | Desktop Claude | A6 リリースゲート — ベテラン弁護士監査反映 (6軸 + 運用の芯)
+
+**やったこと:**
+- A6 初版 (5 軸) を「ベテラン弁護士 AI」として監査 → 50/100 点と判定、R1〜R8 の改善案を提示
+- ユーザ承認のうえ「C + 運用の芯」パッケージを実装:
+
+  **R1 判定ロジック強化**
+  - `evaluateGate()` を全面書き換え
+  - サンプル単位 絶対条件: `forbiddenCompliance=5 必須` / `factAccuracy≥4` / `全軸≥3` の最低点ガード
+  - 平均 相対条件: `factAccuracy/missingInfoDetection/structureConsistency/practicalPriority ≥ 4.0`, `compressionRate ≥ 3.5`
+  - 1 条件でも欠けたら FAIL、`failureReasons[]` で具体メッセージ列挙
+  - `GATE_THRESHOLDS` 定数化
+
+  **R2 弁護士グレード EvaluationHints**
+  - `string[]` から 4 セクション構造化: `topQuestions / mustDetect / practicalSignals / forbiddenChecks`
+  - 5 サンプル全て書き直し (tweet ID 重要性・5ch ID 当日限定・Instagram 脅迫並行・YouTube 相談者主観フィルタ・Discord snowflake 等の実務知埋め込み)
+
+  **R4 第6軸 practicalPriority (実務優先順位)**
+  - ログ保存期限 / 証拠保全緊急性 / 次アクション明示 を独立評価
+  - `scorePracticalPriority Int?` を `AISampleRun` に追加
+
+  **運用の芯 ReleaseGateApproval (immutable snapshot)**
+  - `prisma/schema.prisma` に `ReleaseGateApproval` モデル追加（promptVersion / result / samplesJson / evaluationJson / notes / reviewerId）
+  - `/api/admin/release-gate/approve` POST/GET 新設
+  - POST: 最新スコアで再評価 → PASS 検証 + prompt version 整合性検証 → snapshot 作成 + audit ログ
+  - **本番 AI 解放は自動化しない**: 人間が Vercel 環境変数 `AI_PROVIDER_FORCE_STUB=false` を手動設定する設計
+
+  **compressionRate 定義固定**
+  - `AXIS_DEFINITIONS` で「相談者の主観・冗長表現を除去し、客観事実のみを簡潔に抽出できているか」と明文化
+  - 減点対象（「絶対」「明らかに」の残存、重複、感情語）も併記
+
+  **UI 全面書き換え (`release-gate-client.tsx`)**
+  - 6 軸対応 (`AXES` に practicalPriority 追加、採点 grid 5→6)
+  - `EvaluationHints` 4 セクション表示 (色分けアイコン付き)
+  - `failureReasons` パネル (FAIL 時)
+  - 本番解放承認ボタン (PASS + prompt version 一致時のみ活性)
+  - prompt version 不一致警告
+  - 直近 3 件の承認履歴セクション
+- DB: `prisma generate` + `prisma db push --accept-data-loss` 成功
+- Step 2 のコミット済みリモート反映 → `git push origin main` 成功 (Step 2: 862f751, Step 3: 0dddda8)
+
+**現在の状態:**
+- `npx tsc --noEmit` ✅
+- `npx prisma db push` 成功 (Supabase 本番に practicalPriority カラム + ReleaseGateApproval テーブル適用済)
+- `git push origin main` ✅ → Vercel 自動デプロイ済
+- A6 リリースゲートは `/admin/release-gate` から 6 軸採点 + 承認まで通しで動作可能
+
+**次にやるべきこと:**
+1. 事務所内弁護士が `/admin/release-gate` で「全サンプル実行」→ 6 軸採点 → PASS 判定 → 承認
+2. **PASS + 承認後**: Vercel 環境変数 `AI_PROVIDER_FORCE_STUB=false` を人間が手動設定 → 初日は `AI_DAILY_COST_LIMIT_USD=3` に絞る
+3. R5: HANDOFF.md / CLAUDE.md に「リリース後 1 週間は並行運用 (弁護士人力整理 vs AI 整理を比較)」を明文化
+4. R6: 複数レビュアー対応 (`AISampleScore` 別テーブル切り出し、将来改修)
+5. R8: 第 6 サンプル「削除済み投稿のアーカイブケース」追加
+6. C2: Case DELETE API + A5 cleanup
+7. Phase B1: Resend メール通知
+
+**判断・方針メモ:**
+- **承認の自動連動なし**: PASS 承認 ≠ 本番 AI 解放。承認は記録、解放は人間の環境変数操作。誤承認リスクを二段構えでブロック
+- **prompt version 整合性チェック**: 承認時に全 run の promptVersion が現在の `ORGANIZE_PROMPT_VERSION` と一致していることを強制。古いプロンプトの実行結果で承認できないようにした
+- **サンプル絶対条件 vs 平均相対条件の二重構造**: 平均だけでは「1サンプルが禁止ワード混入して 0 点でも他が高得点なら通る」という致命的な抜けがあった。今回の二重構造で全サンプルに最低ラインを課した
+- **practicalPriority を structureConsistency から切り出し**: 前者は「timeline/riskFlags の形が妥当か」、後者は「ログ保存期限・次アクションの緊急性を拾えているか」で本質的に異なる観点。独立軸化で曖昧さを除去
+- **forbiddenCompliance は 5 点必須**: 法律 AI 補助では禁止ワード混入は 1 件でも致命的事故。平均閾値では妥協できない
+- **compressionRate のみ 3.5 閾値**: 圧縮は継続改善可能な領域、初期リリース時点で完璧を求めるとデプロイできない。弁護士レビューで補正する前提で許容
+- **EvaluationHints 構造化の副次効果**: 弁護士が採点時に「何を見れば良いか」が一目瞭然。採点者間のブレが減り、R6 (複数レビュアー) 移行時も使える
