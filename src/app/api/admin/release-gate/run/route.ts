@@ -20,7 +20,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { organizeConsultation, ORGANIZE_PROMPT_VERSION } from "@/lib/ai/organize";
+import {
+  organizeConsultation,
+  ORGANIZE_PROMPT_VERSION,
+  AIParseFailedError,
+} from "@/lib/ai/organize";
 import { RELEASE_SAMPLES } from "@/lib/ai/release-samples";
 import { AICostLimitError } from "@/lib/ai/cost-guard";
 
@@ -153,6 +157,30 @@ export async function POST() {
         continue;
       }
       console.error("[release-gate/run] sample failed", sample.key, err);
+
+      // AI 応答の parse 失敗は生レスポンスを AppLog に記録して後日デバッグ可能にする
+      if (err instanceof AIParseFailedError) {
+        try {
+          await prisma.appLog.create({
+            data: {
+              level: "error",
+              category: "ai_safety",
+              message: `release_gate: AI response parse failed (${err.stage})`,
+              context: JSON.stringify({
+                sampleKey: sample.key,
+                stage: err.stage,
+                rawResponseSnippet: err.rawResponse.slice(0, 2000),
+                rawResponseLength: err.rawResponse.length,
+                promptVersion: ORGANIZE_PROMPT_VERSION,
+              }),
+              userId,
+            },
+          });
+        } catch (logErr) {
+          console.error("[release-gate/run] failed to log parse error", logErr);
+        }
+      }
+
       const failed = await prisma.aISampleRun.create({
         data: {
           sampleKey: sample.key,

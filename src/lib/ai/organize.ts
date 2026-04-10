@@ -143,6 +143,53 @@ export type OrganizeResult = {
   hadForbiddenWords: boolean;
 };
 
+/**
+ * AI 応答の JSON 抽出・パースに失敗した時の専用エラー。
+ *
+ * 呼び出し元 (run/route.ts など) がこれを catch して rawResponse を
+ * AppLog に記録することで、後日の原因調査が可能になる。
+ * rawResponse は 2000 文字以内に切り詰めてから保存すること。
+ */
+export class AIParseFailedError extends Error {
+  readonly rawResponse: string;
+  readonly stage: "extract" | "parse";
+  constructor(message: string, stage: "extract" | "parse", rawResponse: string) {
+    super(message);
+    this.name = "AIParseFailedError";
+    this.stage = stage;
+    this.rawResponse = rawResponse;
+  }
+}
+
+/**
+ * Claude の応答テキストから JSON オブジェクトを抽出する。
+ *
+ * 対応パターン:
+ *  - 純粋な JSON: `{...}`
+ *  - markdown code fence 付き: ```json\n{...}\n``` または ```\n{...}\n```
+ *  - 前後に説明文が付いてる場合: `以下が結果です: {...}`
+ *
+ * 戦略: markdown fence を剥がしたうえで、最初の `{` から最後の `}` を
+ * greedy に切り出す。
+ */
+function extractJsonBlock(text: string): string | null {
+  let cleaned = text.trim();
+
+  // markdown code fence を剥がす (```json ... ``` or ``` ... ```)
+  const fenceMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/i);
+  if (fenceMatch) {
+    cleaned = fenceMatch[1].trim();
+  }
+
+  // greedy に最初の { から最後の } まで
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    return null;
+  }
+  return cleaned.slice(start, end + 1);
+}
+
 const SYSTEM_PROMPT = `あなたは弁護士の業務補助AIです。
 以下の厳格な制約を守ってください:
 
@@ -367,7 +414,9 @@ export async function organizeConsultation(params: {
       purpose: "organize_consultation",
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: USER_PROMPT_TEMPLATE(masked) }],
-      maxTokens: 1500,
+      // 2500: 複雑サンプル (timeline/riskFlags/missingInfo が多い) でも
+      // JSON 途中切断を回避するための安全マージン。1500 → 2500 へ bump。
+      maxTokens: 2500,
       userId,
     },
     { forceReal }
@@ -377,18 +426,26 @@ export async function organizeConsultation(params: {
     return stubResult(res.text);
   }
 
-  // JSON抽出
+  // JSON抽出 (markdown fence 対応)
   const text = res.text;
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) {
-    throw new Error("AI応答のJSON抽出に失敗しました");
+  const jsonBlock = extractJsonBlock(text);
+  if (!jsonBlock) {
+    throw new AIParseFailedError(
+      "AI応答のJSON抽出に失敗しました",
+      "extract",
+      text
+    );
   }
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(match[0]);
+    parsed = JSON.parse(jsonBlock);
   } catch {
-    throw new Error("AI応答のJSONパースに失敗しました");
+    throw new AIParseFailedError(
+      "AI応答のJSONパースに失敗しました",
+      "parse",
+      text
+    );
   }
 
   // Sanitize + unmask
