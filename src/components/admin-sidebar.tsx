@@ -18,6 +18,7 @@ import {
   CheckSquare,
   Shield,
   Bell,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/admin/documents", label: "書類管理", icon: FileText },
   { href: "/admin/clients", label: "クライアント", icon: Users },
   { href: "/admin/notifications", label: "通知", icon: Bell },
+  { href: "/admin/release-gate", label: "リリースゲート", icon: ShieldCheck },
   { href: "/admin/users", label: "ユーザー管理", icon: Shield },
 ];
 

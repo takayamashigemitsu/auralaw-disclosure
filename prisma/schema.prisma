@@ -28,6 +28,8 @@ model User {
   aiOrganizeResults AIOrganizeResult[]
   assignedTasks     CaseTask[]         @relation("TaskAssignee")
   taskComments      TaskComment[]      @relation("TaskCommentAuthor")
+  aiSampleRuns      AISampleRun[]      @relation("SampleRunRunner")
+  aiSampleScored    AISampleRun[]      @relation("SampleRunScorer")
 }
 
 model Consultation {
@@ -212,9 +214,53 @@ model AIOrganizeResult {
   createdByUser User   @relation(fields: [createdBy], references: [id])
   createdBy     String
 
+  sampleRuns    AISampleRun[]
+
   @@index([consultationId, createdAt])
   @@index([caseId, createdAt])
   @@index([createdBy, createdAt])
+}
+
+/// A6 リリースゲート: 5サンプルに対する organizeConsultation 実行結果 + 5軸採点
+model AISampleRun {
+  id            String   @id @default(cuid())
+  /// release-samples.ts の key（例: "x-evidence-full"）
+  sampleKey     String
+  /// 人間が読むラベル（実行時点のコピー）
+  sampleLabel   String
+  /// 実行時の promptVersion
+  promptVersion String
+  /// エラー時のメッセージ（成功時は null）
+  errorMessage  String?
+
+  organizeResult   AIOrganizeResult? @relation(fields: [organizeResultId], references: [id], onDelete: SetNull)
+  organizeResultId String?
+
+  // ─── 5 軸採点（1-5, null = 未採点） ───
+  /// 事実正確性: 相談内容から逸脱なく事実を抽出できたか
+  scoreFactAccuracy         Int?
+  /// 圧縮率: ノイズを削ぎ落とせたか
+  scoreCompressionRate      Int?
+  /// 禁止ワード遵守: 法的判断語が出力されていないか
+  scoreForbiddenCompliance  Int?
+  /// 不足情報指摘力: 面談で聞くべき情報を拾えたか
+  scoreMissingInfoDetection Int?
+  /// 構造整合: timeline / riskFlags / parties の形が妥当か
+  scoreStructureConsistency Int?
+  /// 採点メモ（自由記述）
+  scoreNotes                String?
+
+  scoredBy     String?
+  scoredByUser User?     @relation("SampleRunScorer", fields: [scoredBy], references: [id], onDelete: SetNull)
+  scoredAt     DateTime?
+
+  runBy     String
+  runByUser User   @relation("SampleRunRunner", fields: [runBy], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([sampleKey, createdAt])
+  @@index([promptVersion, createdAt])
+  @@index([runBy, createdAt])
 }
 
 model AIAnalysis {
