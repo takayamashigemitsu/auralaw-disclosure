@@ -199,6 +199,8 @@ model AIOrganizeResult {
   missingInfo        String // JSON
   /// 生の応答（監査用）
   rawResponse        String
+  /// 連打防止用の冪等キー: sha256(consultationId|caseId + normalizedContent + promptVersion)
+  idempotencyKey     String?  @unique
   createdAt          DateTime @default(now())
 
   consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
