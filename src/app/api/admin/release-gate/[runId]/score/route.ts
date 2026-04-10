@@ -39,6 +39,7 @@ export async function POST(
   const scoreForbiddenCompliance = parseScore(body.scoreForbiddenCompliance);
   const scoreMissingInfoDetection = parseScore(body.scoreMissingInfoDetection);
   const scoreStructureConsistency = parseScore(body.scoreStructureConsistency);
+  const scorePracticalPriority = parseScore(body.scorePracticalPriority);
   const scoreNotes =
     typeof body.scoreNotes === "string" ? body.scoreNotes.slice(0, 2000) : null;
 
@@ -48,6 +49,7 @@ export async function POST(
     scoreForbiddenCompliance,
     scoreMissingInfoDetection,
     scoreStructureConsistency,
+    scorePracticalPriority,
   ]) {
     if (v === "invalid") {
       return NextResponse.json(
@@ -73,6 +75,7 @@ export async function POST(
       scoreForbiddenCompliance: scoreForbiddenCompliance as number | null,
       scoreMissingInfoDetection: scoreMissingInfoDetection as number | null,
       scoreStructureConsistency: scoreStructureConsistency as number | null,
+      scorePracticalPriority: scorePracticalPriority as number | null,
       scoreNotes,
       scoredBy: session.user.id,
       scoredAt: new Date(),
@@ -84,6 +87,7 @@ export async function POST(
       scoreForbiddenCompliance: true,
       scoreMissingInfoDetection: true,
       scoreStructureConsistency: true,
+      scorePracticalPriority: true,
       scoreNotes: true,
       scoredAt: true,
     },

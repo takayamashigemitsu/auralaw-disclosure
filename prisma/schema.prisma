@@ -26,10 +26,11 @@ model User {
   notifications     Notification[]
   aiAnalyses        AIAnalysis[]
   aiOrganizeResults AIOrganizeResult[]
-  assignedTasks     CaseTask[]         @relation("TaskAssignee")
-  taskComments      TaskComment[]      @relation("TaskCommentAuthor")
-  aiSampleRuns      AISampleRun[]      @relation("SampleRunRunner")
-  aiSampleScored    AISampleRun[]      @relation("SampleRunScorer")
+  assignedTasks     CaseTask[]            @relation("TaskAssignee")
+  taskComments      TaskComment[]         @relation("TaskCommentAuthor")
+  aiSampleRuns      AISampleRun[]         @relation("SampleRunRunner")
+  aiSampleScored    AISampleRun[]         @relation("SampleRunScorer")
+  releaseApprovals  ReleaseGateApproval[]
 }
 
 model Consultation {
@@ -247,6 +248,8 @@ model AISampleRun {
   scoreMissingInfoDetection Int?
   /// 構造整合: timeline / riskFlags / parties の形が妥当か
   scoreStructureConsistency Int?
+  /// 実務優先順位: ログ保存期限・証拠保全の緊急性・次アクションの明示（第6軸）
+  scorePracticalPriority    Int?
   /// 採点メモ（自由記述）
   scoreNotes                String?
 
@@ -261,6 +264,30 @@ model AISampleRun {
   @@index([sampleKey, createdAt])
   @@index([promptVersion, createdAt])
   @@index([runBy, createdAt])
+}
+
+/// A6 リリースゲート: PASS 時点のスナップショット（immutable）
+/// 「どの prompt version で、誰が、どのスコアで合格判定したか」を不変記録。
+/// 後日の検証可能性を担保するため、更新不可で扱う（コード上の規約）。
+model ReleaseGateApproval {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  /// 承認時点の ORGANIZE_PROMPT_VERSION
+  promptVersion  String
+  /// "PASS" のみ保存される想定（FAIL/INCOMPLETE は作らない）
+  result         String
+  /// 承認時点の各サンプルのスコア（SampleScore[] を JSON 化）
+  samplesJson    String
+  /// 承認時点の GateEvaluation 全体（平均値・failureReasons 等）JSON
+  evaluationJson String
+  /// 承認者メモ
+  notes          String?
+
+  reviewer   User   @relation(fields: [reviewerId], references: [id])
+  reviewerId String
+
+  @@index([createdAt])
+  @@index([promptVersion, createdAt])
 }
 
 model AIAnalysis {

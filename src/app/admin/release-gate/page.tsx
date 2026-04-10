@@ -1,9 +1,10 @@
 /**
  * /admin/release-gate
  *
- * A6 リリースゲート: 5 サンプル実行 + 5 軸採点のダッシュボード。
+ * A6 リリースゲート: 5 サンプル実行 + 6 軸採点のダッシュボード。
  * ADMIN 限定。各サンプルの最新実行 + 採点状態を一覧表示し、
- * gate 判定（pass / fail / incomplete）を出す。
+ * gate 判定（pass / fail / incomplete）を出す。PASS 時は承認ボタンで
+ * ReleaseGateApproval スナップショットを作成可能。
  */
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -13,6 +14,7 @@ import {
   evaluateGate,
   type SampleScore,
 } from "@/lib/ai/release-samples";
+import { ORGANIZE_PROMPT_VERSION } from "@/lib/ai/organize";
 import { ReleaseGateClient } from "./release-gate-client";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +45,6 @@ export default async function ReleaseGatePage() {
     },
   });
 
-  // sampleKey ごとに最新1件を選択
   const latestByKey = new Map<string, (typeof runs)[number]>();
   for (const r of runs) {
     if (!latestByKey.has(r.sampleKey)) {
@@ -51,7 +52,7 @@ export default async function ReleaseGatePage() {
     }
   }
 
-  // Gate 評価
+  // Gate 評価（6 軸）
   const scores: SampleScore[] = Array.from(latestByKey.values()).map((r) => ({
     sampleKey: r.sampleKey,
     scoreFactAccuracy: r.scoreFactAccuracy,
@@ -59,10 +60,20 @@ export default async function ReleaseGatePage() {
     scoreForbiddenCompliance: r.scoreForbiddenCompliance,
     scoreMissingInfoDetection: r.scoreMissingInfoDetection,
     scoreStructureConsistency: r.scoreStructureConsistency,
+    scorePracticalPriority: r.scorePracticalPriority,
   }));
   const evaluation = evaluateGate(scores);
 
-  // Client 用にシリアライズ（JSON フィールドを parse、Date を string に）
+  // 直近の承認履歴（3 件のみ表示）
+  const recentApprovals = await prisma.releaseGateApproval.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 3,
+    include: {
+      reviewer: { select: { name: true, email: true } },
+    },
+  });
+
+  // Client 用シリアライズ
   const sampleRows = RELEASE_SAMPLES.map((sample) => {
     const run = latestByKey.get(sample.key);
     if (!run) {
@@ -106,6 +117,7 @@ export default async function ReleaseGatePage() {
         scoreForbiddenCompliance: run.scoreForbiddenCompliance,
         scoreMissingInfoDetection: run.scoreMissingInfoDetection,
         scoreStructureConsistency: run.scoreStructureConsistency,
+        scorePracticalPriority: run.scorePracticalPriority,
         scoreNotes: run.scoreNotes,
         scoredAt: run.scoredAt?.toISOString() ?? null,
         organizeResult,
@@ -117,6 +129,16 @@ export default async function ReleaseGatePage() {
     <ReleaseGateClient
       rows={sampleRows}
       evaluation={evaluation}
+      currentPromptVersion={ORGANIZE_PROMPT_VERSION}
+      recentApprovals={recentApprovals.map((a) => ({
+        id: a.id,
+        createdAt: a.createdAt.toISOString(),
+        promptVersion: a.promptVersion,
+        result: a.result,
+        reviewerName: a.reviewer.name,
+        reviewerEmail: a.reviewer.email,
+        notes: a.notes,
+      }))}
     />
   );
 }

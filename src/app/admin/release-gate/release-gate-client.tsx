@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * A6 リリースゲート Client コンポーネント
+ * A6 リリースゲート Client コンポーネント (6 軸 + 運用の芯 版)
  *
  * - 全サンプルに対する「全件実行」ボタン
- * - 各サンプルの AI 出力表示
- * - 各サンプルの 5 軸採点フォーム
- * - Gate 総合判定（pass/fail/incomplete）
+ * - 各サンプルの AI 出力表示 + 弁護士採点ガイド (EvaluationHints 4 セクション)
+ * - 各サンプルの 6 軸採点フォーム
+ * - Gate 総合判定（pass/fail/incomplete/no_data） + 失敗理由
+ * - PASS 時: 本番 AI 解放承認ボタン (ReleaseGateApproval 作成)
+ * - 直近の承認履歴
  */
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -15,9 +17,25 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type { ReleaseSample, GateEvaluation } from "@/lib/ai/release-samples";
+import type {
+  ReleaseSample,
+  GateEvaluation,
+  EvaluationHints,
+} from "@/lib/ai/release-samples";
 import { toast } from "sonner";
-import { Play, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Play,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  ShieldCheck,
+  Clock,
+  ListChecks,
+  SearchCheck,
+  AlertTriangle,
+  Ban,
+} from "lucide-react";
 
 type TimelineEntry = { when: string; what: string; gap?: boolean };
 type Party = { role: string; name?: string; handle?: string };
@@ -47,10 +65,21 @@ type SampleRow = {
     scoreForbiddenCompliance: number | null;
     scoreMissingInfoDetection: number | null;
     scoreStructureConsistency: number | null;
+    scorePracticalPriority: number | null;
     scoreNotes: string | null;
     scoredAt: string | null;
     organizeResult: OrganizeResultLite | null;
   } | null;
+};
+
+type RecentApproval = {
+  id: string;
+  createdAt: string;
+  promptVersion: string;
+  result: string;
+  reviewerName: string | null;
+  reviewerEmail: string | null;
+  notes: string | null;
 };
 
 const AXES = [
@@ -59,6 +88,7 @@ const AXES = [
   { key: "scoreForbiddenCompliance", label: "禁止ワード遵守", short: "禁止" },
   { key: "scoreMissingInfoDetection", label: "不足情報指摘力", short: "不足" },
   { key: "scoreStructureConsistency", label: "構造整合", short: "構造" },
+  { key: "scorePracticalPriority", label: "実務優先順位", short: "実務" },
 ] as const;
 
 type AxisKey = (typeof AXES)[number]["key"];
@@ -66,9 +96,13 @@ type AxisKey = (typeof AXES)[number]["key"];
 export function ReleaseGateClient({
   rows,
   evaluation,
+  currentPromptVersion,
+  recentApprovals,
 }: {
   rows: SampleRow[];
   evaluation: GateEvaluation;
+  currentPromptVersion: string;
+  recentApprovals: RecentApproval[];
 }) {
   const router = useRouter();
   const [isRunning, startRunning] = useTransition();
@@ -103,8 +137,10 @@ export function ReleaseGateClient({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">A6 リリースゲート</h1>
           <p className="mt-1 text-sm text-gray-500">
-            5 サンプルを AI 整理に通し、5 軸（事実正確性・圧縮率・禁止ワード遵守・不足情報指摘・構造整合）で採点します。
-            全軸平均 4.0 以上で本番 AI 解放可。
+            5 サンプルを AI 整理に通し、6 軸（事実正確性・圧縮率・禁止ワード遵守・不足情報指摘・構造整合・実務優先順位）で採点します。
+            <br />
+            現在の prompt version:{" "}
+            <span className="font-mono text-gray-700">{currentPromptVersion}</span>
           </p>
         </div>
         <Button onClick={runAll} disabled={isRunning}>
@@ -120,19 +156,51 @@ export function ReleaseGateClient({
         </Button>
       </div>
 
-      <GateStatusCard evaluation={evaluation} />
+      <GateStatusCard
+        evaluation={evaluation}
+        currentPromptVersion={currentPromptVersion}
+        rows={rows}
+      />
 
       <div className="space-y-8">
         {rows.map((row) => (
-          <SampleBlock key={row.sample.key} row={row} onSaved={() => router.refresh()} />
+          <SampleBlock
+            key={row.sample.key}
+            row={row}
+            onSaved={() => router.refresh()}
+          />
         ))}
       </div>
+
+      <RecentApprovalsSection approvals={recentApprovals} />
     </div>
   );
 }
 
-function GateStatusCard({ evaluation }: { evaluation: GateEvaluation }) {
-  const { status, averages, sampleCount, scoredCount, missingKeys } = evaluation;
+// ==================================================================
+// Gate 総合判定カード (失敗理由・承認ボタン含む)
+// ==================================================================
+
+function GateStatusCard({
+  evaluation,
+  currentPromptVersion,
+  rows,
+}: {
+  evaluation: GateEvaluation;
+  currentPromptVersion: string;
+  rows: SampleRow[];
+}) {
+  const router = useRouter();
+  const [approving, setApproving] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const {
+    status,
+    averages,
+    sampleCount,
+    scoredCount,
+    missingKeys,
+    failureReasons,
+  } = evaluation;
 
   const statusInfo = {
     pass: {
@@ -163,6 +231,48 @@ function GateStatusCard({ evaluation }: { evaluation: GateEvaluation }) {
 
   const Icon = statusInfo.icon;
 
+  // prompt version 不一致の検出
+  const runPromptVersions = new Set(
+    rows.filter((r) => r.run).map((r) => r.run!.promptVersion)
+  );
+  const hasVersionMismatch =
+    runPromptVersions.size > 0 &&
+    (runPromptVersions.size > 1 || !runPromptVersions.has(currentPromptVersion));
+
+  async function approve() {
+    if (status !== "pass") return;
+    if (hasVersionMismatch) {
+      toast.error(
+        "prompt version が一致していません。全サンプルを再実行してください"
+      );
+      return;
+    }
+    setApproving(true);
+    try {
+      const res = await fetch("/api/admin/release-gate/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: approvalNotes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "承認に失敗しました");
+        return;
+      }
+      toast.success(
+        "合格承認を記録しました。本番解放は Vercel 環境変数を手動更新してください"
+      );
+      setApprovalNotes("");
+      router.refresh();
+    } catch {
+      toast.error("ネットワークエラー");
+    } finally {
+      setApproving(false);
+    }
+  }
+
   return (
     <Card className={statusInfo.bg}>
       <CardContent className="pt-6">
@@ -176,18 +286,110 @@ function GateStatusCard({ evaluation }: { evaluation: GateEvaluation }) {
               <p className="text-xs text-gray-600">
                 採点済 {scoredCount}/{sampleCount}
                 {missingKeys.length > 0 && (
-                  <> · 未採点: {missingKeys.join(", ")}</>
+                  <> · 未採点/未完了: {missingKeys.join(", ")}</>
                 )}
               </p>
             </div>
             {averages.overall !== null && (
-              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-6">
+              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-7">
                 <AvgBox label="総合" value={averages.overall} highlight />
-                <AvgBox label="事実" value={averages.factAccuracy} />
-                <AvgBox label="圧縮" value={averages.compressionRate} />
-                <AvgBox label="禁止" value={averages.forbiddenCompliance} />
-                <AvgBox label="不足" value={averages.missingInfoDetection} />
-                <AvgBox label="構造" value={averages.structureConsistency} />
+                <AvgBox
+                  label="事実"
+                  value={averages.factAccuracy}
+                  threshold={4.0}
+                />
+                <AvgBox
+                  label="圧縮"
+                  value={averages.compressionRate}
+                  threshold={3.5}
+                />
+                <AvgBox
+                  label="禁止"
+                  value={averages.forbiddenCompliance}
+                  threshold={5.0}
+                />
+                <AvgBox
+                  label="不足"
+                  value={averages.missingInfoDetection}
+                  threshold={4.0}
+                />
+                <AvgBox
+                  label="構造"
+                  value={averages.structureConsistency}
+                  threshold={4.0}
+                />
+                <AvgBox
+                  label="実務"
+                  value={averages.practicalPriority}
+                  threshold={4.0}
+                />
+              </div>
+            )}
+
+            {failureReasons.length > 0 && (
+              <div className="rounded border border-red-200 bg-white p-3">
+                <p className="flex items-center gap-1 text-xs font-semibold text-red-700">
+                  <AlertTriangle className="h-3.5 w-3.5" /> 不合格理由 (
+                  {failureReasons.length})
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">
+                  {failureReasons.map((r, i) => (
+                    <li key={i}>{r.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {hasVersionMismatch && (
+              <div className="rounded border border-yellow-300 bg-yellow-50 p-3 text-xs text-yellow-800">
+                <p className="font-semibold">
+                  ⚠ prompt version 不一致: 実行済み ={" "}
+                  <span className="font-mono">
+                    {Array.from(runPromptVersions).join(", ")}
+                  </span>{" "}
+                  / 現在 ={" "}
+                  <span className="font-mono">{currentPromptVersion}</span>
+                </p>
+                <p className="mt-1">
+                  承認前に「全サンプル実行」で再実行してください。
+                </p>
+              </div>
+            )}
+
+            {status === "pass" && !hasVersionMismatch && (
+              <div className="rounded border border-green-300 bg-white p-3 space-y-2">
+                <p className="flex items-center gap-1 text-xs font-semibold text-green-800">
+                  <ShieldCheck className="h-3.5 w-3.5" /> 本番 AI 解放承認
+                </p>
+                <p className="text-xs text-gray-600">
+                  承認すると ReleaseGateApproval に immutable スナップショットを保存します。
+                  本番 AI 解放は承認後、Vercel 環境変数{" "}
+                  <span className="font-mono">AI_PROVIDER_FORCE_STUB=false</span>{" "}
+                  を人間が手動設定することで反映されます。
+                </p>
+                <Textarea
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  rows={2}
+                  className="text-xs"
+                  placeholder="承認メモ（任意）: レビュー方針・気になる点など"
+                />
+                <Button
+                  size="sm"
+                  onClick={approve}
+                  disabled={approving}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {approving ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> 承認中...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-3.5 w-3.5" /> 本番解放を承認
+                    </>
+                  )}
+                </Button>
               </div>
             )}
           </div>
@@ -201,13 +403,15 @@ function AvgBox({
   label,
   value,
   highlight = false,
+  threshold = 4.0,
 }: {
   label: string;
   value: number | null;
   highlight?: boolean;
+  threshold?: number;
 }) {
   const v = value === null ? "—" : value.toFixed(2);
-  const pass = value !== null && value >= 4.0;
+  const pass = value !== null && value >= threshold;
   return (
     <div
       className={`rounded border p-2 ${highlight ? "border-gray-400 bg-white" : "bg-white/60"}`}
@@ -230,6 +434,10 @@ function AvgBox({
   );
 }
 
+// ==================================================================
+// サンプルブロック
+// ==================================================================
+
 function SampleBlock({
   row,
   onSaved,
@@ -245,6 +453,7 @@ function SampleBlock({
     scoreForbiddenCompliance: run?.scoreForbiddenCompliance?.toString() ?? "",
     scoreMissingInfoDetection: run?.scoreMissingInfoDetection?.toString() ?? "",
     scoreStructureConsistency: run?.scoreStructureConsistency?.toString() ?? "",
+    scorePracticalPriority: run?.scorePracticalPriority?.toString() ?? "",
   });
   const [notes, setNotes] = useState(run?.scoreNotes ?? "");
 
@@ -252,7 +461,9 @@ function SampleBlock({
     if (!run) return;
     setSaving(true);
     try {
-      const payload: Record<string, number | string | null> = { scoreNotes: notes };
+      const payload: Record<string, number | string | null> = {
+        scoreNotes: notes,
+      };
       for (const axis of AXES) {
         const v = scores[axis.key];
         payload[axis.key] = v === "" ? null : Number(v);
@@ -290,7 +501,8 @@ function SampleBlock({
               {run && (
                 <>
                   {" · "}
-                  prompt: <span className="font-mono">{run.promptVersion}</span>
+                  prompt:{" "}
+                  <span className="font-mono">{run.promptVersion}</span>
                   {" · "}
                   実行: {new Date(run.createdAt).toLocaleString("ja-JP")}
                 </>
@@ -300,16 +512,14 @@ function SampleBlock({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 評価ポイントヒント */}
-        <details className="rounded border bg-gray-50 p-3 text-xs">
-          <summary className="cursor-pointer font-medium text-gray-700">
-            評価ポイント（{sample.evaluationHints.length}件）
+        {/* 弁護士採点ガイド (EvaluationHints 4 セクション) */}
+        <details className="rounded border bg-amber-50/50 p-3 text-xs">
+          <summary className="cursor-pointer font-medium text-amber-900">
+            弁護士採点ガイド (topQuestions / mustDetect / practicalSignals / forbiddenChecks)
           </summary>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-gray-600">
-            {sample.evaluationHints.map((h, i) => (
-              <li key={i}>{h}</li>
-            ))}
-          </ul>
+          <div className="mt-3">
+            <HintsView hints={sample.hints} />
+          </div>
         </details>
 
         {/* 相談内容原文 */}
@@ -342,8 +552,8 @@ function SampleBlock({
 
         {run && !run.errorMessage && (
           <div className="space-y-3 rounded border bg-white p-3">
-            <p className="text-sm font-medium text-gray-900">5 軸採点</p>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <p className="text-sm font-medium text-gray-900">6 軸採点</p>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
               {AXES.map((axis) => (
                 <div key={axis.key}>
                   <Label className="text-xs text-gray-600">{axis.label}</Label>
@@ -393,6 +603,85 @@ function SampleBlock({
     </Card>
   );
 }
+
+// ==================================================================
+// EvaluationHints 4 セクション表示
+// ==================================================================
+
+function HintsView({ hints }: { hints: EvaluationHints }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <HintSection
+        icon={ListChecks}
+        title="topQuestions"
+        subtitle="面談で最初に必ず聞く質問"
+        items={hints.topQuestions}
+        color="text-blue-700"
+      />
+      <HintSection
+        icon={SearchCheck}
+        title="mustDetect"
+        subtitle="missingInfo / riskFlags で必ず指摘すべき項目"
+        items={hints.mustDetect}
+        color="text-purple-700"
+      />
+      <HintSection
+        icon={Clock}
+        title="practicalSignals"
+        subtitle="実務優先順位 (緊急性・次アクション・証拠保全)"
+        items={hints.practicalSignals}
+        color="text-orange-700"
+      />
+      <HintSection
+        icon={Ban}
+        title="forbiddenChecks"
+        subtitle="1 件でも混入したら満点失う表現"
+        items={hints.forbiddenChecks}
+        color="text-red-700"
+        mono
+      />
+    </div>
+  );
+}
+
+function HintSection({
+  icon: Icon,
+  title,
+  subtitle,
+  items,
+  color,
+  mono = false,
+}: {
+  icon: typeof ListChecks;
+  title: string;
+  subtitle: string;
+  items: string[];
+  color: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded border bg-white p-2">
+      <p className={`flex items-center gap-1 text-xs font-semibold ${color}`}>
+        <Icon className="h-3.5 w-3.5" /> {title}
+        <span className="ml-1 text-[10px] font-normal text-gray-400">
+          ({items.length})
+        </span>
+      </p>
+      <p className="text-[10px] text-gray-500">{subtitle}</p>
+      <ul
+        className={`mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-gray-700 ${mono ? "font-mono" : ""}`}
+      >
+        {items.map((it, i) => (
+          <li key={i}>{it}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ==================================================================
+// AI 整理結果ビュー
+// ==================================================================
 
 function OrganizeResultView({ result }: { result: OrganizeResultLite }) {
   return (
@@ -444,7 +733,10 @@ function OrganizeResultView({ result }: { result: OrganizeResultLite }) {
           <ul className="space-y-0.5 text-gray-700">
             {result.riskFlags.map((r, i) => (
               <li key={i}>
-                <Badge variant="outline" className="mr-2 font-mono text-[10px]">
+                <Badge
+                  variant="outline"
+                  className="mr-2 font-mono text-[10px]"
+                >
                   {r.type}
                 </Badge>
                 {r.detail}
@@ -489,5 +781,70 @@ function Section({
       </p>
       {children}
     </div>
+  );
+}
+
+// ==================================================================
+// 直近の承認履歴
+// ==================================================================
+
+function RecentApprovalsSection({ approvals }: { approvals: RecentApproval[] }) {
+  if (approvals.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">直近の承認履歴</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-gray-500">まだ承認記録はありません。</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">直近の承認履歴 (最新 3 件)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-3">
+          {approvals.map((a) => (
+            <li
+              key={a.id}
+              className="rounded border border-green-200 bg-green-50/50 p-3 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-3.5 w-3.5 text-green-700" />
+                  <span className="font-semibold text-green-800">
+                    {a.result}
+                  </span>
+                  <span className="font-mono text-gray-600">
+                    {a.promptVersion}
+                  </span>
+                </div>
+                <span className="text-gray-500">
+                  {new Date(a.createdAt).toLocaleString("ja-JP")}
+                </span>
+              </div>
+              <p className="mt-1 text-gray-700">
+                承認者: {a.reviewerName ?? "—"}
+                {a.reviewerEmail && (
+                  <span className="ml-1 text-gray-500">
+                    ({a.reviewerEmail})
+                  </span>
+                )}
+              </p>
+              {a.notes && (
+                <p className="mt-1 whitespace-pre-wrap text-gray-600">
+                  📝 {a.notes}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
