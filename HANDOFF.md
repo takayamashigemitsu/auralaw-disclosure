@@ -525,3 +525,148 @@ AI_SINGLE_REQUEST_LIMIT_USD=1      # or AI_REQUEST_COST_LIMIT_USD
 - **なぜ Hobby 移管を許容したか**: Vercel Hobby の "non-commercial use only" 規約は承知の上で、CC 入力拒否というユーザー意志を優先。将来的に Pro Trial / Pro に移行するオプションは残っている (プロジェクト Transfer で再対応可能)
 - **なぜ git author を一時 override にしたか**: Claude の安全ルール "NEVER update the git config" を守るため、`git -c` で 1 回の commit にだけ適用する。永続 config 変更はユーザー判断事項
 - **旧プロジェクト削除のタイミング**: 移管後にすぐ削除するのではなく、新プロジェクトで 1 日以上安定動作してから削除する (ロールバック先として残しておく安全策)
+
+---
+
+## 2026-04-10 20:45 | Claude Code (Desktop) | Vercel アカウント移管 続き — 環境変数一括登録 + deploy 成功 + SSO ブロック判明
+
+**やったこと:**
+- 新 team `lawcorpaura-4238s-projects` (project `prj_5OxoKBYnFl1POgT65dHP5FUf03BH`) に `.env` の機微値を 8 個 stdin pipe で登録
+  (`printf '%s' "$VAR" | vercel env add KEY production`)
+  - `DATABASE_URL` / `DIRECT_URL` / `NEXTAUTH_SECRET` / `RESEND_API_KEY` / `EMAIL_FROM`
+  - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` / `ANTHROPIC_API_KEY`
+  - stdin パイプ方式で Claude の context に値が流れない設計にした
+- 本番専用 5 変数を登録:
+  `SITE_PASSWORD=aura2026` / `AI_PROVIDER_FORCE_STUB=true` / `AI_RELEASE_GATE_USE_REAL=true` /
+  `AI_DAILY_COST_LIMIT_USD=3` / `AI_SINGLE_REQUEST_LIMIT_USD=1`
+- `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` は `.env` に空で入っていたため登録スキップ (コード側 `storage.ts` が空値フォールバック実装済み、Phase A2 で正式設定する)
+- `NEXTAUTH_URL` は skip: `src/lib/auth.ts` に `trustHost: true` が入っているので Vercel auto-detect で OK
+- flat route 化コミットを `git -c user.email=law.corp.aura@gmail.com -c user.name=lawcorpaura` で実施
+  - commit: `f17f316` `fix(deploy): /contact/complete を /contact-complete にフラット化`
+  - 永続的な git config 変更は行っていない (Claude Code 安全ルール遵守)
+- `git push origin main` 成功
+- クリーンビルド: `rm -rf .next .vercel/output && vercel pull --yes --environment=production && vercel build --prod` → **成功**
+  - `/contact-complete` が `○ (Static)` としてビルド出力に出た
+- `vercel deploy --prebuilt --prod` → **成功** (readyState: READY)
+  - Deployment ID: `dpl_E4xHVX9Qmkw21rr7k9U1z4YQUraj`
+  - Production alias: `https://auralaw-disclosure-two.vercel.app` (旧 team が `auralaw-disclosure.vercel.app` を保持しているため数字付き)
+  - Inspector: https://vercel.com/lawcorpaura-4238s-projects/auralaw-disclosure/E4xHVX9Qmkw21rr7k9U1z4YQUraj
+- deploy 後 `NEXT_PUBLIC_APP_URL=https://auralaw-disclosure-two.vercel.app` を登録
+- curl で疎通確認 → **全ルート 401 Unauthorized + `_vercel_sso_nonce` Set-Cookie**
+- Vercel REST API (`GET /v9/projects/{id}?teamId=...`) で確認 → `ssoProtection: { deploymentType: 'all_except_custom_domains' }` が有効
+  - Hobby 新規プロジェクトの既定値
+  - すべての `*.vercel.app` deployment URL が SSO ロックされている状態
+
+**現在の状態:**
+- ビルド/デプロイは完全に通った (READY)
+- Vercel SSO Deployment Protection により、LP を含めすべての HTTP リクエストが 401 になる
+- アクセス制御設定の変更は Claude Code 安全ルール上 Claude が実行できないため、**ユーザー手動操作待ち**
+- 旧 project (`prj_yenOC0snl7NoSYtuSUQBFlfFdRIG`) はまだ lexxtec2306 team に残っている (ロールバック可能)
+
+**次にやるべきこと:**
+1. **ユーザー手動操作**: Vercel Dashboard
+   https://vercel.com/lawcorpaura-4238s-projects/auralaw-disclosure/settings/deployment-protection
+   → **Vercel Authentication** を **"Only Preview Deployments"** もしくは **"Disabled"** に変更 → Save
+2. Claude が `curl /gate` `curl /api/auth/session` `curl /admin/release-gate` で疎通確認
+3. site password `aura2026` で `/gate` を通過 → admin ログイン → `/admin/release-gate` で 6 サンプル採点
+4. 採点 PASS → 承認 → `ReleaseGateApproval` 作成
+5. 1 日以上の安定動作確認後、旧 project (`prj_yenOC0snl7NoSYtuSUQBFlfFdRIG`) を lexxtec2306 dashboard から削除
+
+**判断・方針メモ:**
+- **なぜ stdin pipe 方式を選んだか**: `vercel env add` はデフォルトでインタラクティブに値入力を求めるが、`printf '%s' "$VAR" | vercel env add KEY production` で stdin を食わせれば非対話モードになる。かつ、ローカル `.env` を `set -a && source .env && set +a` してから使うので、値は一度も Claude の context に流れない。secure-by-design
+- **なぜ Supabase vars を空のままにしたか**: `.env` 上で空値 (=) として定義されており実値がない。`src/lib/storage.ts:17-20` が `supabaseUrl && supabaseServiceKey` で null fallback を実装しているので、アプリは base64 モードで起動する。Phase A2 の Storage 移行時に正式値を登録する計画
+- **なぜ NEXTAUTH_URL を登録しなかったか**: `src/lib/auth.ts:66` で `trustHost: true` が設定されている = NextAuth v5 は request host を信頼するので、Vercel 上では自動で `VERCEL_URL` から推論される。登録しないほうがむしろドメイン変更に強い
+- **なぜ SSO Protection を Claude が自動で外さなかったか**: Claude Code 安全ルール `prohibited_actions` に "Modifying security permissions or access controls" があるため、API token を持っていても人間の明示的操作が必要。`/gate` の site password と Vercel SSO は別レイヤーなので、app 側の security は SSO を外しても保たれる
+- **なぜ `auralaw-disclosure-two.vercel.app` という alias になったか**: 旧 team (lexxtec2306) の project が `auralaw-disclosure.vercel.app` を保持したままなので、新 team で同名 project を作ると自動でサフィックス (`-two`) が付く。旧 project 削除後に alias を `auralaw-disclosure.vercel.app` に張り替えられる可能性あり
+
+---
+
+## 2026-04-11 09:45 | Claude Code (Desktop) | Vercel 移管完了 — framework 誤検出 + Windows symlink 問題を解消してデプロイ成功
+
+**やったこと:**
+- SSO 解除後に疎通確認したところ全ルート 404 → 原因調査
+- Vercel REST API で project 設定を確認 → `framework: null` を発見
+  - `vercel project add` で作った空プロジェクトは framework 自動検出されず `@vercel/static-build` にフォールバックしていた
+  - 結果 `.vercel/output/functions/` が生成されず、routes.json が `404.html` 固定になっていた
+- `PATCH /v9/projects/{id}` で `{"framework":"nextjs"}` を設定
+- `vercel pull --yes --environment=production` で project.json を更新 (`framework: "nextjs"` 反映)
+- `rm -rf .next .vercel/output && vercel build --prod` で再ビルド → **今度は `@vercel/next` が走り、全 route を functions に出力**
+- `vercel deploy --prebuilt --prod` → **`ENOENT: .../__PAGE__.segment.rsc.func`** で deploy_failed
+  - Next.js 16 Turbopack の partial prerender 出力が symlink を多用
+  - Windows + Git Bash の疑似 symlink は NTFS native symlink ではなく、Vercel CLI の tar upload で正しく serialize されない
+- **解決**: `--prebuilt` を外して `vercel deploy --prod` で server-side Linux build → **成功 (READY)**
+  - Build on Vercel server took 56s (Washington D.C., iad1)
+  - Deployment: `dpl_9F1qUnqP4Hcz9Q3Uw8dPcDifh4kB`
+  - URL: `https://auralaw-disclosure-cp1acll0n-lawcorpaura-4238s-projects.vercel.app`
+  - Alias: `https://auralaw-disclosure-two.vercel.app`
+- 疎通確認全パス:
+  - `GET /` → 307 → `/gate` ✅
+  - `GET /gate` → **200 OK** ✅ (HTML title: "発信者情報開示請求サポート（法人用） | 弁護士法人AURA")
+  - `GET /contact` → 307 → `/gate` ✅ (site_password cookie 未保持のため)
+  - `GET /contact-complete` → 307 → `/gate` ✅
+  - `GET /api/auth/session` → `null` ✅
+  - `GET /admin/release-gate` → 307 → `/admin/login` ✅
+
+**現在の状態:**
+- **新 Vercel team (`lawcorpaura-4238s-projects`) で本番稼働中**
+- 全ルート疎通確認 PASS
+- R5 並行運用前設定: `AI_PROVIDER_FORCE_STUB=true` + `AI_RELEASE_GATE_USE_REAL=true` で稼働
+- 旧 project (`prj_yenOC0snl7NoSYtuSUQBFlfFdRIG` / lexxtec2306) はまだ残っている (ロールバック先として保持)
+
+**次にやるべきこと:**
+1. ブラウザで `https://auralaw-disclosure-two.vercel.app/gate` にアクセス
+2. `SITE_PASSWORD=aura2026` で通過
+3. admin login (既存の管理者アカウント) で `/admin/release-gate` にアクセス
+4. 6 サンプル (sample1〜6) で本物 Anthropic を叩いて 6 軸採点
+5. PASS → 承認 → `ReleaseGateApproval` スナップショット作成
+6. 1 日以上の安定動作確認 → 旧 project (`prj_yenOC0snl7NoSYtuSUQBFlfFdRIG`) を dashboard から削除
+7. 必要であれば custom domain 設定で `auralaw-disclosure.vercel.app` の張り替え (旧 project 削除後)
+
+**判断・方針メモ:**
+- **なぜ framework 誤検出が起きたか**: `vercel project add <name>` で新規作成した project は framework が null になる。通常は初回 push / link 時に自動検出されるが、今回は `.vercel/project.json` を手動同期した経路だったため auto-detect が走らなかった可能性がある。明示的に API で `framework: "nextjs"` を設定すれば確実
+- **なぜ Windows symlink 問題が Next.js 16 特有か**: Next.js 15 以前は `.vercel/output/functions/` に同じ lambda を複数回コピーしていたが、Next.js 16 Turbopack の partial prerender は同じ rsc.func を複数の segment variant から symlink で参照するように最適化されている。この symlink がクロスプラットフォーム upload で失われる
+- **なぜ server-side build を選んだか**: 選択肢は (1) WSL2 で build する、(2) symlink を実ファイルコピーに変換するスクリプト、(3) server-side build の 3 つ。(3) が最小変更で最も確実。欠点は build time が長い (CLI 即時返しではなく 56s 待ち) が、手元の環境差吸収ができる
+- **なぜ今後も `--prebuilt` を避けるべきか**: Windows 上で Next.js 16 の output を `--prebuilt` deploy する限り symlink 問題は再発する。今後のワークフローは `vercel --prod` (prebuilt 無し) を推奨。または、deploy 直前に symlink を実ファイル化する pre-hook を仕込む
+- **Ship26 のバナーに気づいた**: Vercel Dashboard 下部に "Ship 26 / Built for you to ship what's next." のバナーがあり、Vercel Ship イベント連動の UI 変更 (deployment protection UI / git author attribution 等) が関連している可能性。この短期間にデフォルト挙動が変わったのは Ship 26 の影響かもしれない
+
+---
+
+## 2026-04-11 10:20 | Claude Code (Desktop) | NextAuth v5 localhost:3000 リーク修正
+
+**やったこと:**
+- ユーザーが admin login でパスワード正答 + OTP 入力後、/admin/dashboard に行かず /admin/login に戻ると報告
+- curl で `/api/auth/csrf` を叩いて Set-Cookie を確認 → 4 つの cookie が発行されていた:
+  - `__Host-authjs.csrf-token` (Secure) ✅
+  - `__Secure-authjs.callback-url=https://auralaw-disclosure-two.vercel.app` (Secure) ✅
+  - `authjs.csrf-token` (非 Secure) — 重複 ⚠️
+  - `authjs.callback-url=http://localhost:3000` (非 Secure) — **バグ** ❌
+- 次に誤 credentials で `/api/auth/callback/credentials` を POST → 302 の Location が
+  `http://localhost:3000/admin/login?error=CredentialsSignin&code=credentials` だった
+- 正常 login でも同じパターンで `http://localhost:3000/admin/dashboard` に飛ばされて、
+  ブラウザは実在しない localhost に到達できずセッション cookie が失効 → 振り出し
+- 原因: **NextAuth v5 は `trustHost: true` だけではリダイレクト URL 生成時に localhost:3000 にフォールバックする既知の挙動**。
+  前提として `NEXTAUTH_URL`/`AUTH_URL` を明示設定する必要があった
+- 修正:
+  - `NEXTAUTH_URL=https://auralaw-disclosure-two.vercel.app` を Vercel env に追加
+  - `AUTH_URL=https://auralaw-disclosure-two.vercel.app` も追加 (NextAuth v5 は `AUTH_URL` を優先的に見る)
+  - `vercel deploy --prod` で再デプロイ (`dpl_4Vgj7qbtZbmo7yV3ZZBjdRMzMBrC`)
+- 再検証:
+  - CSRF GET の Set-Cookie は 2 つに減った (`__Host-authjs.csrf-token`, `__Secure-authjs.callback-url`) ✅
+  - 誤 credentials で POST した際の Location が `https://auralaw-disclosure-two.vercel.app/admin/login?error=CredentialsSignin&code=credentials` ✅
+  - localhost:3000 の痕跡は消えた
+
+**現在の状態:**
+- 新 deployment: `dpl_4Vgj7qbtZbmo7yV3ZZBjdRMzMBrC` (READY)
+- admin login のセッション Cookie 問題解消
+- ユーザーが実際に login を試すフェーズ
+
+**次にやるべきこと:**
+1. ユーザーが `https://auralaw-disclosure-two.vercel.app/admin/login` で再ログイン
+2. OTP 認証 → `/admin/dashboard` 遷移確認
+3. `/admin/release-gate` で 6 サンプル採点
+
+**判断・方針メモ:**
+- **なぜ `trustHost: true` だけでは不十分だったか**: NextAuth v5 ドキュメントでは "trustHost: true で十分" と書かれているが、実際は callback URL の生成や非 Secure cookie の書き出しに `process.env.NEXTAUTH_URL` (または `AUTH_URL`) が使われる経路が残っていた。とくに `NextResponse.redirect()` に渡す Location は trustHost と別の決定経路
+- **なぜ `AUTH_URL` も設定したか**: NextAuth v5 は `AUTH_URL` が最優先、次に `NEXTAUTH_URL`、最後に request host の順で検索する。両方書いた方が将来のライブラリ更新でも安全
+- **なぜ最初に気づけなかったか**: 前セッションで "`trustHost: true` があるから NEXTAUTH_URL 不要" と判断したが、これは NextAuth v4 までの知識。v5 では挙動が変わっている (AGENTS.md の警告 "This is NOT the Next.js you know" が示唆していた)。今後は "設定省略できる" 系の判断を避け、URL や secret は必ず明示する方針にする
+
