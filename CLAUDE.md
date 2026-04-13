@@ -1,8 +1,18 @@
 @AGENTS.md
 
+# 作業環境
+
+**VPS (160.251.137.47) が作業の中心**。どのPCからでもSSHでVPSに入り、同じ環境で作業する。
+- プロジェクトパス: `~/disclosure-request/disclosure-request/`
+- .env はVPS上にのみ存在（gitには含まない）
+- Claude Code CLI インストール済み
+- node_modules / Prisma Client セットアップ済み
+
+ローカルPC上で直接作業する場合も、VPS上で作業する場合も、以下のハンドオフルールを守ること。
+
 # セッション間ハンドオフルール
 
-このプロジェクトは複数のClaude Codeセッション（デスクトップアプリ、Telegram経由CLI等）から操作される。
+このプロジェクトは複数のClaude Codeセッション（デスクトップアプリ、VPS上CLI、Telegram経由CLI等）から操作される。
 作業経緯の共有のため、以下のルールを**必ず**守ること。
 
 ## セッション開始時（必須・省略不可）
